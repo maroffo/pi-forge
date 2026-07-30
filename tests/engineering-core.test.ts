@@ -24,6 +24,17 @@ test("package exposes engineering skills and the commit prompt", async () => {
   assert.ok(manifest.files.includes("prompts/"));
 });
 
+test("npm release metadata and installation instructions stay explicit", async () => {
+  const manifest = JSON.parse(await text("package.json"));
+  const readme = await text("README.md");
+
+  assert.equal(manifest.repository.url, "git+https://github.com/maroffo/pi-forge.git");
+  assert.equal(manifest.publishConfig.access, "public");
+  assert.match(readme, /pi install npm:pi-subagents@0\.37\.2/);
+  assert.match(readme, /pi install npm:@maroffo\/pi-forge@0\.1\.0/);
+  assert.match(readme, /execute extensions with the current user's permissions/);
+});
+
 test("source-control defines narrow commit and push authorization", async () => {
   const skill = await text("skills/source-control/SKILL.md");
 

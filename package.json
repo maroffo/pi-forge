@@ -3,7 +3,18 @@
   "version": "0.1.0",
   "description": "Opinionated multi-provider coding harness for the pi agent",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/maroffo/pi-forge.git"
+  },
+  "homepage": "https://github.com/maroffo/pi-forge#readme",
+  "bugs": {
+    "url": "https://github.com/maroffo/pi-forge/issues"
+  },
   "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
   "files": [
     "AGENTS.md.example",
     "LICENSE",

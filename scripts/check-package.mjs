@@ -95,6 +95,10 @@ await access(join(ROOT, "AGENTS.md"))
 
 const packageJson = JSON.parse(await readFile(join(ROOT, "package.json"), "utf8"));
 if (packageJson.name !== "@maroffo/pi-forge") errors.push("package name must be @maroffo/pi-forge");
+if (packageJson.repository?.url !== "git+https://github.com/maroffo/pi-forge.git") {
+  errors.push("package repository must identify the public source repository");
+}
+if (packageJson.publishConfig?.access !== "public") errors.push("npm publication must remain explicitly public");
 if (!packageJson.keywords?.includes("pi-package")) errors.push("package keywords must include pi-package");
 if (!packageJson.pi?.extensions?.includes("./extensions")) errors.push("manifest must expose ./extensions");
 if (!packageJson.pi?.prompts?.includes("./prompts")) errors.push("manifest must expose ./prompts");

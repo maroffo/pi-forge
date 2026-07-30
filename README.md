@@ -42,8 +42,20 @@ Synthesis currently uses `openai-codex/gpt-5.6-sol`, for five model calls in tot
 - pi coding agent
 - GNU Make for `/score`
 - GitHub CLI for issue-backed `/plan-forge` and `/pr-review`
-- [`pi-subagents`](https://github.com/nicobailon/pi-subagents) extension, version 0.37.2
 - authentication configured in Pi for all four providers
+
+## Install
+
+Pi packages execute extensions with the current user's permissions. Review the published source before installing.
+
+Install the pinned Pi Subagents runtime, then Pi Forge:
+
+```bash
+pi install npm:pi-subagents@0.37.2
+pi install npm:@maroffo/pi-forge@0.1.0
+```
+
+Restart Pi or run `/reload` after installation. The Pi Forge runtime rejects a different Pi Subagents version rather than silently changing agent behavior.
 
 ## Local development install
 
