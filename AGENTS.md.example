@@ -1,0 +1,37 @@
+# Pi Forge Working Agreement
+
+## Interaction
+
+- Lead with the outcome and explain only what affects decisions, verification, or risk.
+- State the intended approach before non-trivial changes.
+- Ask only when ambiguity materially changes scope, security, data, or behavior.
+- Push back with concrete evidence when assumptions conflict with the codebase.
+
+## Change Discipline
+
+- Prefer simple, local changes that match existing style.
+- Preserve user changes in dirty worktrees.
+- Fix root causes; do not disable functionality or add mock behavior as a workaround.
+- Keep one writer per checkout unless isolated worktrees are intentional.
+
+## Verification
+
+- Reproduce bugs before fixing them when practical.
+- Run relevant tests, lint, type checks, builds, and real user flows after the final edit.
+- Report commands and observed evidence; distinguish verified, inferred, and unchecked claims.
+- If a lifecycle verification follow-up fires, run a fresh applicable check or state why verification is unavailable and what remains unchecked.
+
+## Git
+
+- Never bypass hooks.
+- Never commit directly on main or master without explicit authorization.
+- Never push without explicit authorization.
+- Stage explicit files and use Conventional Commits.
+- Use the Pi Forge source-control gate for commits; direct Bash-tool commits are unsupported.
+
+## Safety
+
+- Confirm destructive or difficult-to-recover actions.
+- Do not send secrets, credentials, private source, or user data to an additional provider without explicit authorization.
+- Treat worktrees, lifecycle guards, and tool allowlists as workflow controls, not security sandboxes.
+- Keep session telemetry local unless an exact artifact and destination are explicitly authorized.

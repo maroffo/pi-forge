@@ -1,0 +1,66 @@
+{
+  "name": "@maroffo/pi-forge",
+  "version": "0.1.0",
+  "description": "Opinionated multi-provider coding harness for the pi agent",
+  "license": "MIT",
+  "type": "module",
+  "files": [
+    "AGENTS.md.example",
+    "LICENSE",
+    "agent-skills/",
+    "README.md",
+    "agents/",
+    "chains/",
+    "docs/",
+    "extensions/",
+    "prompts/",
+    "skills/",
+    "src/"
+  ],
+  "keywords": [
+    "pi-package",
+    "coding-agent",
+    "multi-provider",
+    "subagents"
+  ],
+  "scripts": {
+    "check": "node scripts/check-package.mjs && node --experimental-strip-types --check extensions/*.ts",
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "test:runtime": "node scripts/check-runtime-resources.mjs",
+    "test:e2e": "npm run check && npm test && npm run test:runtime",
+    "test:pi-subagents-upgrade": "node scripts/test-pi-subagents-upgrade.mjs"
+  },
+  "pi": {
+    "extensions": [
+      "./extensions"
+    ],
+    "prompts": [
+      "./prompts"
+    ],
+    "skills": [
+      "./skills"
+    ],
+    "subagents": {
+      "agents": [
+        "./agents"
+      ],
+      "chains": [
+        "./chains"
+      ]
+    }
+  },
+  "dependencies": {
+    "pi-subagents": "0.37.2"
+  },
+  "bundledDependencies": [
+    "pi-subagents"
+  ],
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "peerDependenciesMeta": {
+    "@earendil-works/pi-coding-agent": {
+      "optional": true
+    }
+  }
+}

@@ -1,0 +1,7 @@
+node_modules/
+.DS_Store
+.pi-subagents/
+.pi-loop.json.lock
+coverage/
+upgrade-report.log
+*.log

@@ -1,0 +1,474 @@
+{
+  "name": "second-opinion",
+  "package": "pi-forge",
+  "description": "Ask four isolated providers for independent opinions, then synthesize their evidence with minimized identity bias",
+  "chain": [
+    {
+      "phase": "Independent review",
+      "label": "Four provider perspectives",
+      "parallel": [
+        {
+          "agent": "pi-forge.independent-critic",
+          "model": "openai-codex/gpt-5.6-sol",
+          "as": "perspectiveA",
+          "progress": false,
+          "task": "Evaluate the artifact independently using the rubric below. Do not identify your provider or speculate about other reviewers.\n\nRubric:\n- correctness and internal consistency\n- hidden assumptions and missing evidence\n- concrete risks or counterexamples\n- smallest justified recommendation\n\n<artifact>\n{task}\n</artifact>",
+          "outputSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "verdict",
+              "summary",
+              "findings",
+              "uncertainties"
+            ],
+            "properties": {
+              "verdict": {
+                "type": "string",
+                "enum": [
+                  "accept",
+                  "revise",
+                  "reject",
+                  "inconclusive"
+                ]
+              },
+              "summary": {
+                "type": "string"
+              },
+              "findings": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "severity",
+                    "claim",
+                    "evidence",
+                    "recommendation",
+                    "confidence"
+                  ],
+                  "properties": {
+                    "severity": {
+                      "type": "string",
+                      "enum": [
+                        "critical",
+                        "major",
+                        "minor",
+                        "note"
+                      ]
+                    },
+                    "claim": {
+                      "type": "string"
+                    },
+                    "evidence": {
+                      "type": "string"
+                    },
+                    "recommendation": {
+                      "type": "string"
+                    },
+                    "confidence": {
+                      "type": "string",
+                      "enum": [
+                        "high",
+                        "medium",
+                        "low"
+                      ]
+                    }
+                  }
+                }
+              },
+              "uncertainties": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        {
+          "agent": "pi-forge.independent-critic",
+          "model": "anthropic/claude-fable-5",
+          "as": "perspectiveB",
+          "progress": false,
+          "task": "Evaluate the artifact independently using the rubric below. Do not identify your provider or speculate about other reviewers.\n\nRubric:\n- correctness and internal consistency\n- hidden assumptions and missing evidence\n- concrete risks or counterexamples\n- smallest justified recommendation\n\n<artifact>\n{task}\n</artifact>",
+          "outputSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "verdict",
+              "summary",
+              "findings",
+              "uncertainties"
+            ],
+            "properties": {
+              "verdict": {
+                "type": "string",
+                "enum": [
+                  "accept",
+                  "revise",
+                  "reject",
+                  "inconclusive"
+                ]
+              },
+              "summary": {
+                "type": "string"
+              },
+              "findings": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "severity",
+                    "claim",
+                    "evidence",
+                    "recommendation",
+                    "confidence"
+                  ],
+                  "properties": {
+                    "severity": {
+                      "type": "string",
+                      "enum": [
+                        "critical",
+                        "major",
+                        "minor",
+                        "note"
+                      ]
+                    },
+                    "claim": {
+                      "type": "string"
+                    },
+                    "evidence": {
+                      "type": "string"
+                    },
+                    "recommendation": {
+                      "type": "string"
+                    },
+                    "confidence": {
+                      "type": "string",
+                      "enum": [
+                        "high",
+                        "medium",
+                        "low"
+                      ]
+                    }
+                  }
+                }
+              },
+              "uncertainties": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        {
+          "agent": "pi-forge.independent-critic",
+          "model": "google/gemini-3.6-flash",
+          "as": "perspectiveC",
+          "progress": false,
+          "task": "Evaluate the artifact independently using the rubric below. Do not identify your provider or speculate about other reviewers.\n\nRubric:\n- correctness and internal consistency\n- hidden assumptions and missing evidence\n- concrete risks or counterexamples\n- smallest justified recommendation\n\n<artifact>\n{task}\n</artifact>",
+          "outputSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "verdict",
+              "summary",
+              "findings",
+              "uncertainties"
+            ],
+            "properties": {
+              "verdict": {
+                "type": "string",
+                "enum": [
+                  "accept",
+                  "revise",
+                  "reject",
+                  "inconclusive"
+                ]
+              },
+              "summary": {
+                "type": "string"
+              },
+              "findings": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "severity",
+                    "claim",
+                    "evidence",
+                    "recommendation",
+                    "confidence"
+                  ],
+                  "properties": {
+                    "severity": {
+                      "type": "string",
+                      "enum": [
+                        "critical",
+                        "major",
+                        "minor",
+                        "note"
+                      ]
+                    },
+                    "claim": {
+                      "type": "string"
+                    },
+                    "evidence": {
+                      "type": "string"
+                    },
+                    "recommendation": {
+                      "type": "string"
+                    },
+                    "confidence": {
+                      "type": "string",
+                      "enum": [
+                        "high",
+                        "medium",
+                        "low"
+                      ]
+                    }
+                  }
+                }
+              },
+              "uncertainties": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        {
+          "agent": "pi-forge.independent-critic",
+          "model": "deepseek/deepseek-v4-pro",
+          "as": "perspectiveD",
+          "progress": false,
+          "task": "Evaluate the artifact independently using the rubric below. Do not identify your provider or speculate about other reviewers.\n\nRubric:\n- correctness and internal consistency\n- hidden assumptions and missing evidence\n- concrete risks or counterexamples\n- smallest justified recommendation\n\n<artifact>\n{task}\n</artifact>",
+          "outputSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "verdict",
+              "summary",
+              "findings",
+              "uncertainties"
+            ],
+            "properties": {
+              "verdict": {
+                "type": "string",
+                "enum": [
+                  "accept",
+                  "revise",
+                  "reject",
+                  "inconclusive"
+                ]
+              },
+              "summary": {
+                "type": "string"
+              },
+              "findings": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "severity",
+                    "claim",
+                    "evidence",
+                    "recommendation",
+                    "confidence"
+                  ],
+                  "properties": {
+                    "severity": {
+                      "type": "string",
+                      "enum": [
+                        "critical",
+                        "major",
+                        "minor",
+                        "note"
+                      ]
+                    },
+                    "claim": {
+                      "type": "string"
+                    },
+                    "evidence": {
+                      "type": "string"
+                    },
+                    "recommendation": {
+                      "type": "string"
+                    },
+                    "confidence": {
+                      "type": "string",
+                      "enum": [
+                        "high",
+                        "medium",
+                        "low"
+                      ]
+                    }
+                  }
+                }
+              },
+              "uncertainties": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "concurrency": 4,
+      "failFast": false
+    },
+    {
+      "agent": "pi-forge.opinion-synthesizer",
+      "model": "openai-codex/gpt-5.6-sol",
+      "phase": "Synthesis",
+      "label": "Blind evidence synthesis",
+      "task": "Synthesize the four anonymous perspectives against the original artifact. Do not infer which provider produced a perspective. Agreement is not proof; preserve unresolved disagreement and identify evidence needed to resolve it.\n\n<artifact>\n{task}\n</artifact>\n\n<perspective-a>\n{outputs.perspectiveA}\n</perspective-a>\n\n<perspective-b>\n{outputs.perspectiveB}\n</perspective-b>\n\n<perspective-c>\n{outputs.perspectiveC}\n</perspective-c>\n\n<perspective-d>\n{outputs.perspectiveD}\n</perspective-d>",
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "verdict",
+          "consensus",
+          "disagreements",
+          "priorityFindings",
+          "discardedClaims",
+          "recommendation",
+          "confidence"
+        ],
+        "properties": {
+          "verdict": {
+            "type": "string",
+            "enum": [
+              "accept",
+              "revise",
+              "reject",
+              "inconclusive"
+            ]
+          },
+          "consensus": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "disagreements": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "topic",
+                "positions",
+                "resolution",
+                "evidenceNeeded"
+              ],
+              "properties": {
+                "topic": {
+                  "type": "string"
+                },
+                "positions": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "resolution": {
+                  "type": "string"
+                },
+                "evidenceNeeded": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "priorityFindings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "severity",
+                "claim",
+                "evidence",
+                "recommendation",
+                "reportedBy"
+              ],
+              "properties": {
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "critical",
+                    "major",
+                    "minor",
+                    "note"
+                  ]
+                },
+                "claim": {
+                  "type": "string"
+                },
+                "evidence": {
+                  "type": "string"
+                },
+                "recommendation": {
+                  "type": "string"
+                },
+                "reportedBy": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "A",
+                      "B",
+                      "C",
+                      "D"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "discardedClaims": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "claim",
+                "reason"
+              ],
+              "properties": {
+                "claim": {
+                  "type": "string"
+                },
+                "reason": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "recommendation": {
+            "type": "string"
+          },
+          "confidence": {
+            "type": "string",
+            "enum": [
+              "high",
+              "medium",
+              "low"
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

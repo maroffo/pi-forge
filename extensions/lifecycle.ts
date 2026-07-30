@@ -1,0 +1,230 @@
+// ABOUTME: Enforces common Git, sensitive-path, and post-edit verification lifecycle boundaries.
+// ABOUTME: Uses exact tool events and one bounded follow-up without treating prose as computational evidence.
+
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { existsSync, realpathSync } from "node:fs";
+import { homedir } from "node:os";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import {
+  dangerousCommandReason,
+  findGitMutations,
+  isSourcePath,
+  isVerificationCommand,
+  sensitivePathReason,
+} from "../src/lifecycle-policy.js";
+
+export const LIFECYCLE_ENTRY = "pi-forge.lifecycle.v1";
+const WRITER_AGENT = "pi-forge.software-engineer";
+
+type LifecycleState = {
+  version: 1;
+  sequence: number;
+  lastSourceMutation: number;
+  lastSuccessfulVerification: number;
+  nudgedForMutation: number;
+};
+
+function emptyState(): LifecycleState {
+  return {
+    version: 1,
+    sequence: 0,
+    lastSourceMutation: 0,
+    lastSuccessfulVerification: 0,
+    nudgedForMutation: 0,
+  };
+}
+
+function parseState(value: unknown): LifecycleState | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const candidate = value as Record<string, unknown>;
+  const fields = ["sequence", "lastSourceMutation", "lastSuccessfulVerification", "nudgedForMutation"] as const;
+  if (candidate.version !== 1 || fields.some((field) => !Number.isSafeInteger(candidate[field]) || Number(candidate[field]) < 0)) {
+    return undefined;
+  }
+  return {
+    version: 1,
+    sequence: Number(candidate.sequence),
+    lastSourceMutation: Number(candidate.lastSourceMutation),
+    lastSuccessfulVerification: Number(candidate.lastSuccessfulVerification),
+    nudgedForMutation: Number(candidate.nudgedForMutation),
+  };
+}
+
+function restoreState(entries: readonly unknown[]): LifecycleState {
+  let restored = emptyState();
+  for (const entry of entries) {
+    if (!entry || typeof entry !== "object") continue;
+    const value = entry as { type?: unknown; customType?: unknown; data?: unknown };
+    if (value.type !== "custom" || value.customType !== LIFECYCLE_ENTRY) continue;
+    const parsed = parseState(value.data);
+    if (parsed) restored = parsed;
+  }
+  return restored;
+}
+
+function canonicalPath(rawPath: string, cwd: string): string {
+  const cleaned = rawPath.startsWith("@") ? rawPath.slice(1) : rawPath;
+  const absolute = isAbsolute(cleaned) ? resolve(cleaned) : resolve(cwd, cleaned);
+  if (existsSync(absolute)) return realpathSync(absolute);
+
+  const suffix: string[] = [];
+  let current = absolute;
+  while (!existsSync(current)) {
+    const parent = dirname(current);
+    if (parent === current) return absolute;
+    suffix.unshift(relative(parent, current));
+    current = parent;
+  }
+  return join(realpathSync(current), ...suffix);
+}
+
+function containsWriter(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const input = value as Record<string, unknown>;
+  if (input.agent === WRITER_AGENT) return true;
+  for (const key of ["tasks", "chain"] as const) {
+    if (Array.isArray(input[key]) && input[key].some(containsWriter)) return true;
+  }
+  if (Array.isArray(input.parallel) && input.parallel.some(containsWriter)) return true;
+  if (input.parallel && !Array.isArray(input.parallel) && containsWriter(input.parallel)) return true;
+  return false;
+}
+
+function isWriterExecution(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value) || !containsWriter(value)) return false;
+  const input = value as Record<string, unknown>;
+  if (typeof input.action !== "string") return true;
+  const action = input.action.toLowerCase();
+  return action === "single" && (input.agent !== undefined || input.task !== undefined)
+    || (action === "parallel" || action === "tasks") && Array.isArray(input.tasks) && input.tasks.length > 0;
+}
+
+function safeDisplay(value: string): string {
+  const printable = value.replace(/[\u0000-\u001f\u007f]/g, " ").trim();
+  return printable.length <= 800 ? printable : `${printable.slice(0, 797)}...`;
+}
+
+async function confirmRisk(ctx: any, title: string, detail: string): Promise<{ block: true; reason: string } | undefined> {
+  if (!ctx.hasUI) return { block: true, reason: `${title} requires interactive confirmation.` };
+  const approved = await ctx.ui.confirm(title, detail);
+  return approved ? undefined : { block: true, reason: `${title} was not approved.` };
+}
+
+export default function lifecycleExtension(pi: ExtensionAPI): void {
+  let state = emptyState();
+
+  const persist = () => pi.appendEntry(LIFECYCLE_ENTRY, { ...state });
+  const advanceMutation = () => {
+    state.sequence += 1;
+    state.lastSourceMutation = state.sequence;
+    persist();
+  };
+  const advanceVerification = () => {
+    state.sequence += 1;
+    state.lastSuccessfulVerification = state.sequence;
+    persist();
+  };
+
+  pi.on("session_start", (_event, ctx) => {
+    state = restoreState(ctx.sessionManager.getBranch());
+  });
+
+  pi.on("session_tree", (_event, ctx) => {
+    state = restoreState(ctx.sessionManager.getBranch());
+  });
+
+  pi.on("tool_call", async (event, ctx) => {
+    if (event.toolName === "write" || event.toolName === "edit") {
+      const rawPath = (event.input as { path?: unknown }).path;
+      if (typeof rawPath !== "string" || !rawPath) return;
+      let absolutePath: string;
+      try {
+        absolutePath = canonicalPath(rawPath, ctx.cwd);
+      } catch {
+        return { block: true, reason: "Pi Forge could not canonicalize the write target." };
+      }
+      const sensitive = sensitivePathReason(absolutePath, homedir());
+      if (!sensitive) return;
+      return confirmRisk(
+        ctx,
+        "Sensitive path mutation",
+        `${sensitive}: ${safeDisplay(absolutePath)}\n\nAllow this one ${event.toolName} call?`,
+      );
+    }
+
+    if (event.toolName !== "bash") return;
+    const command = (event.input as { command?: unknown }).command;
+    if (typeof command !== "string") return { block: true, reason: "Pi Forge received an invalid bash command." };
+
+    const mutations = findGitMutations(command);
+    if (mutations.some((mutation) => mutation.kind === "commit")) {
+      return {
+        block: true,
+        reason: "Direct git commit is blocked. Use the source-control skill and commit-gate.sh after explicit commit authorization.",
+      };
+    }
+
+    const remoteActions = [...new Set(mutations.filter((mutation) => mutation.kind === "remote").map((mutation) => mutation.action))];
+    if (remoteActions.length > 0) {
+      return confirmRisk(
+        ctx,
+        "Remote Git mutation",
+        `This command performs: ${remoteActions.join(", ")}\n\n${safeDisplay(command)}\n\nAllow this one call?`,
+      );
+    }
+
+    const destructiveActions = [...new Set(
+      mutations.filter((mutation) => mutation.kind === "destructive").map((mutation) => mutation.action),
+    )];
+    if (destructiveActions.length > 0) {
+      return confirmRisk(
+        ctx,
+        "Git state mutation",
+        `This command performs: ${destructiveActions.join(", ")}\n\n${safeDisplay(command)}\n\nAllow this one call?`,
+      );
+    }
+
+    const dangerous = dangerousCommandReason(command);
+    if (dangerous) {
+      return confirmRisk(
+        ctx,
+        "Dangerous shell command",
+        `${dangerous}:\n\n${safeDisplay(command)}\n\nAllow this one call?`,
+      );
+    }
+  });
+
+  pi.on("tool_result", (event: any, ctx: ExtensionContext) => {
+    if ((event.toolName === "write" || event.toolName === "edit") && !event.isError) {
+      const path = event.input?.path;
+      if (isSourcePath(path, ctx.cwd)) advanceMutation();
+      return;
+    }
+    if (event.toolName === "subagent" && isWriterExecution(event.input)) {
+      const runId = event.details?.runId ?? event.details?.asyncId;
+      if (!event.isError || (typeof runId === "string" && runId.length > 0)) {
+        // A launched writer can mutate before returning an error, so its canonical run id is enough to invalidate prior verification.
+        advanceMutation();
+      }
+      return;
+    }
+    if (event.toolName === "bash" && !event.isError && isVerificationCommand(event.input?.command)) {
+      advanceVerification();
+    }
+  });
+
+  pi.on("agent_end", () => {
+    if (
+      state.lastSourceMutation <= state.lastSuccessfulVerification
+      || state.lastSourceMutation <= state.nudgedForMutation
+    ) return;
+
+    state.nudgedForMutation = state.lastSourceMutation;
+    persist();
+    pi.sendMessage({
+      customType: "pi-forge.lifecycle.verification",
+      content: "Pi Forge lifecycle gate: source changed after the latest successful verification. Before finalizing, run the relevant test, lint, type, or build checks after the last edit. If no check applies or the work is intentionally incomplete, state that explicitly with the unchecked risk. Do not claim completion from stale or failed evidence.",
+      display: true,
+    }, { deliverAs: "followUp", triggerTurn: true });
+  });
+}

@@ -1,0 +1,95 @@
+# ABOUTME: Continuously tests the pinned or newest pi-subagents release against Pi Forge.
+# ABOUTME: Uses an isolated Pi config and cancels before Pi Forge sends a spawn request.
+
+name: pi-subagents upgrade compatibility
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/pi-subagents-upgrade.yml"
+      - "agent-skills/**"
+      - "agents/**"
+      - "chains/**"
+      - "extensions/**"
+      - "package-lock.json"
+      - "package.json"
+      - "prompts/**"
+      - "scripts/**"
+      - "skills/**"
+      - "src/**"
+      - "tests/**"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/pi-subagents-upgrade.yml"
+      - "agent-skills/**"
+      - "agents/**"
+      - "chains/**"
+      - "extensions/**"
+      - "package-lock.json"
+      - "package.json"
+      - "prompts/**"
+      - "scripts/**"
+      - "skills/**"
+      - "src/**"
+      - "tests/**"
+  schedule:
+    - cron: "23 8 * * 1"
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "pi-subagents version or npm tag"
+        required: false
+        default: "latest"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pi-subagents-upgrade-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compatibility:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install project and Pi
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm install --global @earendil-works/pi-coding-agent@0.83.0 --ignore-scripts --no-audit --no-fund
+      - name: Verify pinned package
+        run: npm run test:e2e
+      - name: Select candidate
+        id: candidate
+        env:
+          DISPATCH_TARGET: ${{ inputs.target }}
+        run: |
+          if [[ "${{ github.event_name }}" == "schedule" ]]; then
+            target="latest"
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            target="${DISPATCH_TARGET:-latest}"
+          else
+            target="$(node -p 'require("./package.json").dependencies["pi-subagents"]')"
+          fi
+          echo "target=$target" >> "$GITHUB_OUTPUT"
+      - name: Test candidate in isolation
+        env:
+          CANDIDATE_TARGET: ${{ steps.candidate.outputs.target }}
+        run: |
+          set -o pipefail
+          npm run test:pi-subagents-upgrade -- "$CANDIDATE_TARGET" --force 2>&1 | tee upgrade-report.log
+      - name: Upload compatibility report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pi-subagents-upgrade-report
+          path: upgrade-report.log
+          if-no-files-found: warn

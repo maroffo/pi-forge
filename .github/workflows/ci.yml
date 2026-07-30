@@ -1,0 +1,35 @@
+# ABOUTME: Verifies every Pi Forge change, including package discovery from the publish artifact.
+# ABOUTME: Runs without persisted checkout credentials and never launches a model.
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install project and Pi
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm install --global @earendil-works/pi-coding-agent@0.83.0 --ignore-scripts --no-audit --no-fund
+      - name: Verify package
+        run: npm run test:e2e
