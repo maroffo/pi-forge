@@ -1,10 +1,25 @@
 # Second Opinion Contract
 
-## Input
+## Entry points
 
-`/second-opinion <artifact>` reviews the explicit command argument. With no argument, it reviews the latest non-empty assistant text block.
+`/second-opinion <focus>` is a prompt alias for the `second-opinion` skill. The current parent model first resolves the subject, inspects only relevant evidence, distinguishes verified facts from assumptions and gaps, redacts unnecessary private material, and prepares focused review questions. It then calls `convene_expert_panel` once.
 
-The command refuses targets above 200,000 characters instead of truncating them silently.
+`/expert-panel <artifact>` is the immediate path for an artifact that is already self-contained. With no argument, it reviews the latest non-empty assistant text block. It does not perform parent-model context preparation.
+
+Both paths refuse payloads above 200,000 characters instead of truncating them silently.
+
+## Prepared brief
+
+The skill supplies six explicit fields to the tool:
+
+- review objective;
+- exact subject under review;
+- verified context and constraints;
+- evidence;
+- assumptions, uncertainties, and evidence gaps;
+- ordered questions for the panel.
+
+Before calling the tool, the parent shows a concise preparation note. The tool then opens the exact rendered payload in an editor so the user can inspect, redact, accept, or cancel it. Missing evidence remains labelled rather than invented. The accepted brief, not the parent conversation or project context, becomes the chain task.
 
 ## Disclosure
 
@@ -12,8 +27,9 @@ Before launch, Pi Forge validates the generated chain digest, verifies that the 
 
 The user then sees:
 
-- payload size;
-- all four critic provider and model IDs;
+- the exact editable payload when the skill path is used;
+- accepted payload size and SHA-256 digest;
+- all four panelist provider and model IDs;
 - the separate OpenAI synthesis call and its inputs;
 - excluded context and capabilities.
 
@@ -21,7 +37,7 @@ Cancellation launches no child.
 
 ## Independent review
 
-Four `independent-critic` children receive the same artifact and rubric in fresh context:
+Four `independent-critic` children receive the same prepared brief or direct artifact and rubric in fresh context:
 
 | Perspective | Model |
 |---|---|

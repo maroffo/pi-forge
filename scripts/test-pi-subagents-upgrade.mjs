@@ -141,7 +141,7 @@ async function probeIsolatedRuntime(stageRoot, targetVersion) {
 
         if (event.type === "extension_ui_request" && event.method === "confirm") {
           sawConsent = String(event.message).includes("anthropic/claude-fable-5")
-            && String(event.message).includes("receives the target again plus all four reports");
+            && String(event.message).includes("receives the payload again plus all four reports");
           child.stdin.write(`${JSON.stringify({
             type: "extension_ui_response",
             id: event.id,
@@ -172,7 +172,7 @@ async function probeIsolatedRuntime(stageRoot, targetVersion) {
 
       child.stdin.write(`${JSON.stringify({
         type: "prompt",
-        message: "/second-opinion public compatibility probe",
+        message: "/expert-panel public compatibility probe",
       })}\n`);
     });
   } finally {

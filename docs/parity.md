@@ -3,7 +3,7 @@
 | Capability | Claude Forge source | Pi Forge mechanism | Status |
 |---|---|---|---|
 | Working agreement | `CLAUDE.md.example` | `AGENTS.md.example` | Initial template |
-| Second opinion | `skills/second-opinion/` | four-provider command, agents, chain | Implemented and live-validated |
+| Second opinion | `skills/second-opinion/` | parent brief-building skill, guarded panel tool, immediate `/expert-panel`, agents, and chain | Implemented and live-validated |
 | Source control | `skills/source-control/`, `skills/commit/` | canonical skill plus `/commit` prompt alias | Implemented |
 | Requirements refinement | `skills/refine-requirements/` | conversational Pi skill | Implemented |
 | Implementation writer | `agents/software-engineer/` | scoped package agent plus internal contract skill | Implemented |

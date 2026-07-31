@@ -32,7 +32,7 @@ Never label analysis as verified when it came only from issue prose or memory.
 
 ## 3. Obtain an independent opinion
 
-For non-trivial design choices, prepare a redacted `/second-opinion` target containing the problem, recommendation, rejected alternatives, and explicit questions. Pi slash commands are user entry points: ask the user to invoke `/second-opinion` with that target. The command discloses its fixed providers and obtains consent before launch.
+For non-trivial design choices, prepare a redacted, self-contained expert-panel target containing the problem, recommendation, rejected alternatives, evidence gaps, and explicit questions. Pi slash commands are user entry points; because this artifact is already prepared, ask the user to invoke `/expert-panel` with that target. The command discloses its fixed providers and obtains consent before launch.
 
 The command returns immediately after an async launch. Ask the user to copy its exact run ID from the notification into the next message. Use the `subagent` status action with that exact ID after completion is reported; inspect the completed output or transcript and fold only the final synthesis into the plan. If it is still active, return control instead of polling. Never guess an ID, revive a critic, or treat launch acknowledgement as a result.
 

@@ -31,7 +31,7 @@ test("npm release metadata and installation instructions stay explicit", async (
   assert.equal(manifest.repository.url, "git+https://github.com/maroffo/pi-forge.git");
   assert.equal(manifest.publishConfig.access, "public");
   assert.match(readme, /pi install npm:pi-subagents@0\.37\.2/);
-  assert.match(readme, /pi install npm:@maroffo\/pi-forge@0\.1\.0/);
+  assert.match(readme, /pi install npm:@maroffo\/pi-forge@0\.2\.0/);
   assert.match(readme, /execute extensions with the current user's permissions/);
 });
 

@@ -80,6 +80,8 @@ A true protected resume requires an atomic pi-subagents resume contract and sing
 
 ## Delivery workflows
 
+`/second-opinion` is a prompt alias for a parent-model skill. The skill gathers only decision-relevant evidence, labels facts and uncertainties, and calls `convene_expert_panel` with a structured brief. The tool requires substantive fields and at least two distinct questions, opens the exact payload for user inspection or redaction, and binds the next consent dialog to its digest. It then owns the existing chain validation, runtime check, two preflights, and RPC spawn. `/expert-panel` exposes the same launcher directly for an artifact that is already self-contained, without a parent-model preparation turn.
+
 `/plan-forge` turns issue or in-session evidence into a self-contained ExecPlan. It writes only a draft plan, records provider disclosure and consent when second opinion runs, and emits a fresh-session `/orchestrator` handoff. It does not implement, commit, or publish.
 
 `/orchestrator` keeps the parent in control of localization, one scoped writer, final verification, protected artifact-only review, bounded fix rounds, and presentation. Reviewer tasks contain redacted evidence rather than filesystem access. Numeric `/score` output measures repository gates only and cannot override unresolved review findings.

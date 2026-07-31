@@ -23,14 +23,17 @@ const REQUIRED_PACK_PATHS = [
   "agents/tech-writer.md",
   "extensions/lifecycle.ts",
   "extensions/score.ts",
+  "extensions/second-opinion.ts",
   "extensions/telemetry.ts",
   "docs/lifecycle.md",
   "docs/pi-subagents-resume-contract.md",
+  "docs/second-opinion.md",
   "docs/telemetry.md",
   "prompts/commit.md",
   "prompts/orchestrator.md",
   "prompts/plan-forge.md",
   "prompts/pr-review.md",
+  "prompts/second-opinion.md",
   "skills/orchestrator/SKILL.md",
   "skills/orchestrator/references/review-routing.md",
   "skills/plan-forge/SKILL.md",
@@ -41,6 +44,7 @@ const REQUIRED_PACK_PATHS = [
   "skills/pr-review/references/evidence.md",
   "skills/pr-review/references/output-format.md",
   "skills/refine-requirements/SKILL.md",
+  "skills/second-opinion/SKILL.md",
   "skills/session-telemetry/SKILL.md",
   "skills/session-telemetry/scripts/extract-session-trace.mjs",
   "skills/source-control/SKILL.md",
@@ -133,10 +137,12 @@ async function assertResourceDiscovery(packageRoot, configDir) {
     ["orchestrator", "prompt"],
     ["plan-forge", "prompt"],
     ["pr-review", "prompt"],
+    ["second-opinion", "prompt"],
     ["skill:orchestrator", "skill"],
     ["skill:plan-forge", "skill"],
     ["skill:pr-review", "skill"],
     ["skill:refine-requirements", "skill"],
+    ["skill:second-opinion", "skill"],
     ["skill:session-telemetry", "skill"],
     ["skill:source-control", "skill"],
   ];
@@ -158,6 +164,56 @@ async function assertResourceDiscovery(packageRoot, configDir) {
   }
 }
 
+async function assertSecondOpinionPromptExpansion(packageRoot, configDir, temporaryRoot) {
+  const resultPath = join(temporaryRoot, "second-opinion-prompt.json");
+  const probePath = join(temporaryRoot, "second-opinion-prompt-probe.ts");
+  await writeFile(probePath, `import { writeFileSync } from "node:fs";
+export default function (pi) {
+  pi.registerProvider("prompt-probe", {
+    baseUrl: "http://127.0.0.1:9/v1",
+    apiKey: "probe",
+    api: "openai-completions",
+    models: [{
+      id: "probe",
+      name: "Prompt Probe",
+      reasoning: false,
+      input: ["text"],
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      contextWindow: 10000,
+      maxTokens: 100,
+    }],
+  });
+  pi.on("before_agent_start", (event, ctx) => {
+    writeFileSync(${JSON.stringify(resultPath)}, JSON.stringify({
+      prompt: event.prompt,
+      skills: (event.systemPromptOptions.skills ?? []).map((skill) => skill.name),
+    }));
+    ctx.abort();
+  });
+}
+`);
+  await run("pi", [
+    "--mode",
+    "rpc",
+    "--no-session",
+    "--no-extensions",
+    "--extension",
+    probePath,
+    "--model",
+    "prompt-probe/probe",
+  ], {
+    cwd: packageRoot,
+    env: minimalEnvironment(configDir),
+    input: `${JSON.stringify({ type: "prompt", message: "/second-opinion runtime-expansion-marker" })}\n`,
+  });
+  const result = JSON.parse(await readFile(resultPath, "utf8"));
+  if (!result.prompt.includes("Load and follow the `second-opinion` skill")
+    || !result.prompt.includes("runtime-expansion-marker")
+    || !result.skills.includes("second-opinion")) {
+    throw new Error(`second-opinion prompt did not expand with its public skill: ${JSON.stringify(result)}`);
+  }
+}
+
 async function assertExtensionDiscovery(packageRoot, configDir) {
   const { stdout } = await run("pi", ["--mode", "rpc", "--no-session"], {
     cwd: packageRoot,
@@ -168,7 +224,7 @@ async function assertExtensionDiscovery(packageRoot, configDir) {
   if (!response.success) throw new Error(response.error ?? "Pi extension command discovery failed");
   const commands = response.data?.commands ?? response.commands ?? [];
   const byName = new Map(commands.map((command) => [command.name, command]));
-  for (const name of ["forge-telemetry", "score", "second-opinion"]) {
+  for (const name of ["expert-panel", "forge-telemetry", "score"]) {
     const command = byName.get(name);
     if (!command || command.source !== "extension" || command.sourceInfo?.origin !== "package") {
       throw new Error(`Pi did not discover package extension command ${name}`);
@@ -938,6 +994,7 @@ async function main() {
     );
 
     await assertResourceDiscovery(packageRoot, configDir);
+    await assertSecondOpinionPromptExpansion(packageRoot, configDir, temporaryRoot);
     await assertExtensionDiscovery(packageRoot, configDir);
     await assertWriterContract(packageRoot, projectRoot, configDir, temporaryRoot);
     await assertReviewerContracts(packageRoot, projectRoot, configDir, temporaryRoot);
@@ -946,12 +1003,13 @@ async function main() {
     console.log(JSON.stringify({
       publishArtifact: "verified",
       commitPrompt: "discovered",
-      publicSkills: ["orchestrator", "plan-forge", "pr-review", "refine-requirements", "session-telemetry", "source-control"],
+      publicSkills: ["orchestrator", "plan-forge", "pr-review", "refine-requirements", "second-opinion", "session-telemetry", "source-control"],
       writerAgent: "pi-forge.software-engineer",
       techWriterAgent: "pi-forge.tech-writer",
       reviewerAgents: REVIEWER_NAMES.map((name) => `pi-forge.${name}`),
       privateContractCollisions: "rejected",
       protectedAgentPolicy: "verified",
+      secondOpinionPrompt: "expanded-and-aborted-before-provider",
       modelInvocationRequested: false,
     }));
   } finally {

@@ -47,6 +47,7 @@ test("plan-forge writes a self-contained plan without implicit implementation or
   assert.match(skill, /Do not implement the planned code/);
   assert.match(skill, /Every important mechanic in the plan needs a current `file:line` citation/);
   assert.match(skill, /Pi slash commands are user entry points/);
+  assert.match(skill, /invoke `\/expert-panel` with that target/);
   assert.match(skill, /discloses its fixed providers and obtains consent/);
   assert.match(skill, /exact run ID from the notification/);
   assert.match(skill, /If it is still active, return control instead of polling/);
@@ -87,6 +88,7 @@ test("pr-review is read-only and gates candidate execution", async () => {
   assert.match(skill, /strip the inherited environment/);
   assert.match(skill, /Protected reviewers cannot read the temp clone/);
   assert.match(skill, /provider other than the current one/);
+  assert.match(skill, /redacted, self-contained `\/expert-panel` target/);
   assert.match(skill, /explicit consent still apply/);
   assert.match(skill, /Do not run broad cleanup globs/);
   assert.match(skill, /Never claim deterministic cleanup/);

@@ -8,7 +8,8 @@ Pi Forge is a Pi-native sibling of Claude Forge. It targets functional parity, n
 
 Implemented vertical slices:
 
-- `/second-opinion`, four isolated critics plus evidence-based synthesis;
+- `/second-opinion`, parent-prepared review briefs plus four isolated critics and evidence-based synthesis;
+- `/expert-panel`, immediate fan-out for an already self-contained artifact;
 - `source-control`, with `/commit` as a thin Pi prompt alias;
 - `refine-requirements`, conversational scope and decision refinement;
 - `pi-forge.software-engineer`, a scoped implementation writer using a private contract;
@@ -23,10 +24,14 @@ Implemented vertical slices:
 
 The second-opinion workflow:
 
-1. select an explicit target, or use the latest assistant response;
-2. confirm disclosure to four providers;
-3. launch four independent critics with fresh context and no filesystem, shell, or network tools;
-4. synthesize the letter-labelled reports while minimizing model-identity bias.
+1. use the current parent model to resolve the decision and subject under review;
+2. gather only relevant evidence and separate verified facts from assumptions and gaps;
+3. prepare a self-contained, redacted brief and focused review questions;
+4. confirm disclosure of that brief to four providers;
+5. launch four independent panelists with fresh context and no filesystem, shell, or network tools;
+6. synthesize the letter-labelled reports while minimizing model-identity bias.
+
+`/expert-panel` skips brief preparation and immediately applies steps 4 through 6 to an already self-contained artifact.
 
 The fixed critic models are:
 
@@ -52,7 +57,7 @@ Install the pinned Pi Subagents runtime, then Pi Forge:
 
 ```bash
 pi install npm:pi-subagents@0.37.2
-pi install npm:@maroffo/pi-forge@0.1.0
+pi install npm:@maroffo/pi-forge@0.2.0
 ```
 
 Restart Pi or run `/reload` after installation. The Pi Forge runtime rejects a different Pi Subagents version rather than silently changing agent behavior.
@@ -68,16 +73,16 @@ Run `/reload` after editing package resources.
 
 ## Usage
 
-Review an explicit artifact:
+Prepare context in the parent model, then obtain independent opinions:
 
 ```text
-/second-opinion Evaluate whether this API design preserves backward compatibility: ...
+/second-opinion Evaluate whether this API design preserves backward compatibility.
 ```
 
-Review the latest assistant response:
+Send an already self-contained brief directly to the panel:
 
 ```text
-/second-opinion
+/expert-panel <paste a self-contained brief here>
 ```
 
 Create one local commit from the current task changes:
@@ -108,6 +113,7 @@ Load engineering skills explicitly when needed:
 ```text
 /skill:source-control
 /skill:refine-requirements
+/skill:second-opinion
 /skill:orchestrator
 /skill:plan-forge
 /skill:pr-review
@@ -122,7 +128,7 @@ Load engineering skills explicitly when needed:
 
 The lifecycle extension blocks direct Bash-tool commits, requires interactive confirmation for push, destructive Git and sensitive-path operations, and schedules one bounded verification follow-up after observed source changes without a later successful recognized check. It is a workflow guard, not a shell parser or OS sandbox; obfuscated commands, aliases, custom processes, and internal filesystem operations remain outside complete observation. See `docs/lifecycle.md` and `docs/telemetry.md`.
 
-The second-opinion command validates the generated chain digest, verifies the exact pi-subagents runtime version, preflights the effective agent definitions, pings pi-subagents, then displays the exact providers and payload size before any model is called. Shadowed agents, fallback models, context inheritance, added tools, skills, or ambient extensions are rejected. The preflight repeats immediately before spawn. The command also discloses that OpenAI receives the original target a second time together with all four reports for synthesis.
+The expert-panel launcher validates the generated chain digest, verifies the exact pi-subagents runtime version, preflights the effective agent definitions, and pings pi-subagents before any panel model is called. The skill path opens the exact rendered payload for inspection and redaction, then binds provider consent to its size and SHA-256 digest. Shadowed agents, fallback models, context inheritance, added tools, skills, or ambient extensions are rejected. The preflight repeats immediately before spawn. The launcher also discloses that OpenAI receives the accepted payload a second time together with all four reports for synthesis.
 
 The workflow does not share the parent conversation, project instructions, discovered skills, ambient extensions, or filesystem, shell, and network tools with its children. Pi-subagents still enables its internal `structured_output` tool to enforce result schemas.
 

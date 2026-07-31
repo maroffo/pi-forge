@@ -29,6 +29,7 @@ const REQUIRED = [
   "prompts/orchestrator.md",
   "prompts/plan-forge.md",
   "prompts/pr-review.md",
+  "prompts/second-opinion.md",
   "scripts/check-runtime-resources.mjs",
   "skills/orchestrator/SKILL.md",
   "skills/orchestrator/references/review-routing.md",
@@ -40,6 +41,7 @@ const REQUIRED = [
   "skills/pr-review/references/evidence.md",
   "skills/pr-review/references/output-format.md",
   "skills/refine-requirements/SKILL.md",
+  "skills/second-opinion/SKILL.md",
   "skills/session-telemetry/SKILL.md",
   "skills/session-telemetry/scripts/extract-session-trace.mjs",
   "skills/source-control/SKILL.md",
@@ -94,7 +96,11 @@ await access(join(ROOT, "AGENTS.md"))
   .catch(() => {});
 
 const packageJson = JSON.parse(await readFile(join(ROOT, "package.json"), "utf8"));
+const readme = await readFile(join(ROOT, "README.md"), "utf8");
 if (packageJson.name !== "@maroffo/pi-forge") errors.push("package name must be @maroffo/pi-forge");
+if (!readme.includes(`pi install npm:${packageJson.name}@${packageJson.version}`)) {
+  errors.push("README npm install command must match the package name and version");
+}
 if (packageJson.repository?.url !== "git+https://github.com/maroffo/pi-forge.git") {
   errors.push("package repository must identify the public source repository");
 }
