@@ -1,5 +1,5 @@
-// ABOUTME: Validates the Pi package manifest, required resources, generated chain, and public-content constraints.
-// ABOUTME: Fails on private absolute paths, em dashes, missing files, or accidental runtime AGENTS.md context.
+// ABOUTME: Validates package resources, generated artifacts, the project Behavior Map, and public-content constraints.
+// ABOUTME: Fails on private paths, em dashes, missing files, or accidental runtime AGENTS.md context.
 
 import { access, readFile, readdir } from "node:fs/promises";
 import { dirname, extname, join, relative } from "node:path";
@@ -9,6 +9,14 @@ import { PI_SUBAGENTS_VERSION } from "../src/second-opinion-config.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const REQUIRED = [
+  ".pi/skills/pi-forge-handbook/SKILL.md",
+  ".pi/skills/pi-forge-handbook/references/behaviors/expert-panel.md",
+  ".pi/skills/pi-forge-handbook/references/behaviors/protected-agent-policy.md",
+  ".pi/skills/pi-forge-handbook/references/fingerprints.json",
+  ".pi/skills/pi-forge-handbook/references/index.md",
+  ".pi/skills/pi-forge-handbook/references/manifest.json",
+  ".pi/skills/pi-forge-handbook/references/overview.md",
+  ".pi/skills/pi-forge-handbook/references/registers.md",
   "AGENTS.md.example",
   "agent-skills/pi-forge-implementation-contract/SKILL.md",
   "agent-skills/pi-forge-review-contract/SKILL.md",
@@ -30,7 +38,9 @@ const REQUIRED = [
   "prompts/plan-forge.md",
   "prompts/pr-review.md",
   "prompts/second-opinion.md",
+  "scripts/check-behavior-map.mjs",
   "scripts/check-runtime-resources.mjs",
+  "scripts/lib/behavior-map.mjs",
   "skills/orchestrator/SKILL.md",
   "skills/orchestrator/references/review-routing.md",
   "skills/plan-forge/SKILL.md",

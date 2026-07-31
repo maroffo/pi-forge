@@ -35,7 +35,10 @@
     "subagents"
   ],
   "scripts": {
-    "check": "node scripts/check-package.mjs && node --experimental-strip-types --check extensions/*.ts",
+    "check": "npm run check:behavior-map && node scripts/check-package.mjs && node --experimental-strip-types --check extensions/*.ts",
+    "check:behavior-map": "node scripts/check-behavior-map.mjs --structure",
+    "check:behavior-map:freshness": "node scripts/check-behavior-map.mjs --freshness",
+    "refresh:behavior-map": "node scripts/check-behavior-map.mjs --refresh-fingerprints",
     "test": "node --experimental-strip-types --test tests/*.test.ts",
     "test:runtime": "node scripts/check-runtime-resources.mjs",
     "test:e2e": "npm run check && npm test && npm run test:runtime",

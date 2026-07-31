@@ -1,0 +1,876 @@
+{
+  "schemaVersion": 1,
+  "documents": {
+    "overview": ".pi/skills/pi-forge-handbook/references/overview.md",
+    "index": ".pi/skills/pi-forge-handbook/references/index.md",
+    "registers": ".pi/skills/pi-forge-handbook/references/registers.md"
+  },
+  "behaviors": [
+    {
+      "id": "expert-panel",
+      "title": "Expert Panel",
+      "card": ".pi/skills/pi-forge-handbook/references/behaviors/expert-panel.md",
+      "registerIds": [
+        "pi-subagents-version",
+        "expert-panel-chain-digest"
+      ],
+      "locatorIds": [
+        "second-opinion-skill",
+        "second-opinion-prompt",
+        "second-opinion-brief-builder",
+        "second-opinion-disclosure-validator",
+        "second-opinion-preflight",
+        "second-opinion-runtime-validator",
+        "expert-panel-launcher",
+        "second-opinion-extension",
+        "build-second-opinion-chain",
+        "second-opinion-chain",
+        "chain-integrity-constant",
+        "second-opinion-entry-points",
+        "independent-critic-agent",
+        "opinion-synthesizer-agent",
+        "package-runtime-version",
+        "lock-runtime-version"
+      ],
+      "testPaths": [
+        "tests/orchestration.test.ts",
+        "tests/second-opinion.test.ts"
+      ],
+      "fingerprintPaths": [
+        "README.md",
+        "agents/independent-critic.md",
+        "agents/opinion-synthesizer.md",
+        "docs/architecture.md",
+        "docs/parity.md",
+        "docs/second-opinion.md",
+        "extensions/agent-policy.ts",
+        "extensions/second-opinion.ts",
+        "package-lock.json",
+        "package.json",
+        "prompts/second-opinion.md",
+        "scripts/build-second-opinion.mjs",
+        "scripts/check-package.mjs",
+        "scripts/check-runtime-resources.mjs",
+        "scripts/test-pi-subagents-upgrade.mjs",
+        "skills/plan-forge/SKILL.md",
+        "skills/pr-review/SKILL.md",
+        "skills/pr-review/references/output-format.md",
+        "skills/second-opinion/SKILL.md",
+        "src/second-opinion-config.js"
+      ],
+      "generatedArtifacts": [
+        {
+          "path": "chains/second-opinion.chain.json",
+          "generatedFrom": [
+            "scripts/build-second-opinion.mjs",
+            "src/second-opinion-config.js"
+          ]
+        },
+        {
+          "path": "src/second-opinion-integrity.js",
+          "generatedFrom": [
+            "scripts/build-second-opinion.mjs",
+            "src/second-opinion-config.js"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "protected-agent-policy",
+      "title": "Protected Agent Policy",
+      "card": ".pi/skills/pi-forge-handbook/references/behaviors/protected-agent-policy.md",
+      "registerIds": [
+        "pi-subagents-version",
+        "protected-agent-identities",
+        "run-attestations"
+      ],
+      "locatorIds": [
+        "reviewer-agent-names",
+        "tech-writer-agent-name",
+        "artifact-agent-names",
+        "writer-agent-name",
+        "protected-launch-collector",
+        "protected-launch-validator",
+        "protected-resume-validator",
+        "agent-policy-extension",
+        "run-attestation-entry",
+        "lifecycle-writer-agent",
+        "telemetry-writer-input",
+        "reviewer-definitions",
+        "tech-writer-definition",
+        "implementation-contract-skill",
+        "review-contract-skill",
+        "writing-contract-skill",
+        "protected-review-contract",
+        "package-runtime-version",
+        "lock-runtime-version"
+      ],
+      "testPaths": [
+        "tests/agent-policy.test.ts",
+        "tests/engineering-core.test.ts",
+        "tests/lifecycle.test.ts",
+        "tests/orchestration.test.ts",
+        "tests/reviewer-fleet.test.ts",
+        "tests/tech-writer.test.ts"
+      ],
+      "fingerprintPaths": [
+        "README.md",
+        "agent-skills/pi-forge-implementation-contract/SKILL.md",
+        "agent-skills/pi-forge-review-contract/SKILL.md",
+        "agent-skills/pi-forge-writing-contract/SKILL.md",
+        "agents/software-engineer.md",
+        "docs/architecture.md",
+        "docs/pi-subagents-resume-contract.md",
+        "extensions/agent-policy.ts",
+        "extensions/lifecycle.ts",
+        "package-lock.json",
+        "package.json",
+        "scripts/build-reviewers.mjs",
+        "scripts/build-tech-writer.mjs",
+        "scripts/check-package.mjs",
+        "scripts/check-runtime-resources.mjs",
+        "skills/orchestrator/SKILL.md",
+        "skills/plan-forge/references/implementation-prompt.md",
+        "src/agent-policy-config.js",
+        "src/reviewer-config.js",
+        "src/second-opinion-config.js",
+        "src/session-telemetry.js",
+        "src/tech-writer-config.js"
+      ],
+      "generatedArtifacts": [
+        {
+          "path": "agents/architecture-reviewer.md",
+          "generatedFrom": [
+            "scripts/build-reviewers.mjs",
+            "src/reviewer-config.js",
+            "agent-skills/pi-forge-review-contract/SKILL.md"
+          ]
+        },
+        {
+          "path": "agents/database-reviewer.md",
+          "generatedFrom": [
+            "scripts/build-reviewers.mjs",
+            "src/reviewer-config.js",
+            "agent-skills/pi-forge-review-contract/SKILL.md"
+          ]
+        },
+        {
+          "path": "agents/dependency-reviewer.md",
+          "generatedFrom": [
+            "scripts/build-reviewers.mjs",
+            "src/reviewer-config.js",
+            "agent-skills/pi-forge-review-contract/SKILL.md"
+          ]
+        },
+        {
+          "path": "agents/dx-reviewer.md",
+          "generatedFrom": [
+            "scripts/build-reviewers.mjs",
+            "src/reviewer-config.js",
+            "agent-skills/pi-forge-review-contract/SKILL.md"
+          ]
+        },
+        {
+          "path": "agents/performance-reviewer.md",
+          "generatedFrom": [
+            "scripts/build-reviewers.mjs",
+            "src/reviewer-config.js",
+            "agent-skills/pi-forge-review-contract/SKILL.md"
+          ]
+        },
+        {
+          "path": "agents/security-reviewer.md",
+          "generatedFrom": [
+            "scripts/build-reviewers.mjs",
+            "src/reviewer-config.js",
+            "agent-skills/pi-forge-review-contract/SKILL.md"
+          ]
+        },
+        {
+          "path": "agents/test-reviewer.md",
+          "generatedFrom": [
+            "scripts/build-reviewers.mjs",
+            "src/reviewer-config.js",
+            "agent-skills/pi-forge-review-contract/SKILL.md"
+          ]
+        },
+        {
+          "path": "agents/tech-writer.md",
+          "generatedFrom": [
+            "scripts/build-tech-writer.mjs",
+            "src/tech-writer-config.js",
+            "agent-skills/pi-forge-writing-contract/SKILL.md"
+          ]
+        }
+      ]
+    }
+  ],
+  "registers": [
+    {
+      "id": "pi-subagents-version",
+      "title": "Pinned pi-subagents runtime version",
+      "behaviorIds": [
+        "expert-panel",
+        "protected-agent-policy"
+      ],
+      "locatorIds": [
+        "runtime-version-constant",
+        "package-runtime-version",
+        "lock-runtime-version",
+        "second-opinion-runtime-validator",
+        "protected-launch-validator"
+      ]
+    },
+    {
+      "id": "expert-panel-chain-digest",
+      "title": "Generated Expert Panel chain digest",
+      "behaviorIds": [
+        "expert-panel"
+      ],
+      "locatorIds": [
+        "build-second-opinion-chain",
+        "chain-integrity-constant",
+        "chain-disclosure-validator"
+      ]
+    },
+    {
+      "id": "protected-agent-identities",
+      "title": "Protected agent identities and capability ceilings",
+      "behaviorIds": [
+        "protected-agent-policy"
+      ],
+      "locatorIds": [
+        "reviewer-agent-names",
+        "tech-writer-agent-name",
+        "artifact-agent-names",
+        "writer-agent-name",
+        "protected-launch-validator",
+        "lifecycle-writer-agent",
+        "telemetry-writer-input"
+      ]
+    },
+    {
+      "id": "run-attestations",
+      "title": "Subagent run attestations and resume state",
+      "behaviorIds": [
+        "protected-agent-policy"
+      ],
+      "locatorIds": [
+        "run-attestation-entry",
+        "protected-resume-validator",
+        "agent-policy-extension"
+      ]
+    }
+  ],
+  "locators": [
+    {
+      "id": "runtime-version-constant",
+      "type": "code-declaration",
+      "path": "src/second-opinion-config.js",
+      "identifier": "PI_SUBAGENTS_VERSION"
+    },
+    {
+      "id": "package-runtime-version",
+      "type": "json-pointer",
+      "path": "package.json",
+      "pointer": "/dependencies/pi-subagents"
+    },
+    {
+      "id": "lock-runtime-version",
+      "type": "json-pointer",
+      "path": "package-lock.json",
+      "pointer": "/packages//dependencies/pi-subagents"
+    },
+    {
+      "id": "second-opinion-skill",
+      "type": "skill-name",
+      "path": "skills/second-opinion/SKILL.md",
+      "name": "second-opinion"
+    },
+    {
+      "id": "second-opinion-prompt",
+      "type": "file",
+      "path": "prompts/second-opinion.md"
+    },
+    {
+      "id": "second-opinion-brief-builder",
+      "type": "code-declaration",
+      "path": "extensions/second-opinion.ts",
+      "identifier": "buildSecondOpinionBrief"
+    },
+    {
+      "id": "second-opinion-disclosure-validator",
+      "type": "code-declaration",
+      "path": "extensions/second-opinion.ts",
+      "identifier": "validateChainDisclosure"
+    },
+    {
+      "id": "chain-disclosure-validator",
+      "type": "code-declaration",
+      "path": "extensions/second-opinion.ts",
+      "identifier": "validateChainDisclosure"
+    },
+    {
+      "id": "second-opinion-preflight",
+      "type": "code-declaration",
+      "path": "extensions/second-opinion.ts",
+      "identifier": "preflightSecondOpinion"
+    },
+    {
+      "id": "second-opinion-runtime-validator",
+      "type": "code-declaration",
+      "path": "extensions/second-opinion.ts",
+      "identifier": "validatePiSubagentsRuntime"
+    },
+    {
+      "id": "expert-panel-launcher",
+      "type": "code-declaration",
+      "path": "extensions/second-opinion.ts",
+      "identifier": "launchExpertPanel"
+    },
+    {
+      "id": "second-opinion-extension",
+      "type": "code-declaration",
+      "path": "extensions/second-opinion.ts",
+      "identifier": "secondOpinionExtension"
+    },
+    {
+      "id": "build-second-opinion-chain",
+      "type": "code-declaration",
+      "path": "scripts/build-second-opinion.mjs",
+      "identifier": "buildSecondOpinionChain"
+    },
+    {
+      "id": "second-opinion-chain",
+      "type": "json-pointer",
+      "path": "chains/second-opinion.chain.json",
+      "pointer": "/chain/0/parallel/0/agent"
+    },
+    {
+      "id": "chain-integrity-constant",
+      "type": "code-declaration",
+      "path": "src/second-opinion-integrity.js",
+      "identifier": "SECOND_OPINION_CHAIN_SHA256"
+    },
+    {
+      "id": "second-opinion-entry-points",
+      "type": "markdown-heading",
+      "path": "docs/second-opinion.md",
+      "heading": "Entry points",
+      "level": 2
+    },
+    {
+      "id": "independent-critic-agent",
+      "type": "file",
+      "path": "agents/independent-critic.md"
+    },
+    {
+      "id": "opinion-synthesizer-agent",
+      "type": "file",
+      "path": "agents/opinion-synthesizer.md"
+    },
+    {
+      "id": "reviewer-agent-names",
+      "type": "code-declaration",
+      "path": "src/agent-policy-config.js",
+      "identifier": "REVIEWER_AGENT_NAMES"
+    },
+    {
+      "id": "tech-writer-agent-name",
+      "type": "code-declaration",
+      "path": "src/agent-policy-config.js",
+      "identifier": "TECH_WRITER_AGENT_NAME"
+    },
+    {
+      "id": "artifact-agent-names",
+      "type": "code-declaration",
+      "path": "src/agent-policy-config.js",
+      "identifier": "ARTIFACT_AGENT_NAMES"
+    },
+    {
+      "id": "writer-agent-name",
+      "type": "code-declaration",
+      "path": "src/agent-policy-config.js",
+      "identifier": "WRITER_AGENT_NAME"
+    },
+    {
+      "id": "protected-launch-collector",
+      "type": "code-declaration",
+      "path": "extensions/agent-policy.ts",
+      "identifier": "collectProtectedLaunches"
+    },
+    {
+      "id": "protected-launch-validator",
+      "type": "code-declaration",
+      "path": "extensions/agent-policy.ts",
+      "identifier": "validateProtectedLaunch"
+    },
+    {
+      "id": "protected-resume-validator",
+      "type": "code-declaration",
+      "path": "extensions/agent-policy.ts",
+      "identifier": "validateResumeAttestation"
+    },
+    {
+      "id": "agent-policy-extension",
+      "type": "code-declaration",
+      "path": "extensions/agent-policy.ts",
+      "identifier": "agentPolicyExtension"
+    },
+    {
+      "id": "run-attestation-entry",
+      "type": "code-declaration",
+      "path": "extensions/agent-policy.ts",
+      "identifier": "RUN_ATTESTATION_ENTRY"
+    },
+    {
+      "id": "lifecycle-writer-agent",
+      "type": "code-declaration",
+      "path": "extensions/lifecycle.ts",
+      "identifier": "WRITER_AGENT"
+    },
+    {
+      "id": "telemetry-writer-input",
+      "type": "code-declaration",
+      "path": "src/session-telemetry.js",
+      "identifier": "writerInInput"
+    },
+    {
+      "id": "reviewer-definitions",
+      "type": "code-declaration",
+      "path": "src/reviewer-config.js",
+      "identifier": "REVIEWER_DEFINITIONS"
+    },
+    {
+      "id": "tech-writer-definition",
+      "type": "code-declaration",
+      "path": "src/tech-writer-config.js",
+      "identifier": "TECH_WRITER_DEFINITION"
+    },
+    {
+      "id": "implementation-contract-skill",
+      "type": "skill-name",
+      "path": "agent-skills/pi-forge-implementation-contract/SKILL.md",
+      "name": "pi-forge-implementation-contract"
+    },
+    {
+      "id": "review-contract-skill",
+      "type": "skill-name",
+      "path": "agent-skills/pi-forge-review-contract/SKILL.md",
+      "name": "pi-forge-review-contract"
+    },
+    {
+      "id": "writing-contract-skill",
+      "type": "skill-name",
+      "path": "agent-skills/pi-forge-writing-contract/SKILL.md",
+      "name": "pi-forge-writing-contract"
+    },
+    {
+      "id": "protected-review-contract",
+      "type": "markdown-heading",
+      "path": "docs/architecture.md",
+      "heading": "Review contract",
+      "level": 2
+    }
+  ],
+  "surfaces": [
+    {
+      "path": "README.md",
+      "status": "mapped",
+      "behaviorIds": [
+        "expert-panel",
+        "protected-agent-policy"
+      ]
+    },
+    {
+      "path": "agent-skills/pi-forge-implementation-contract/SKILL.md",
+      "status": "mapped",
+      "behaviorIds": [
+        "protected-agent-policy"
+      ]
+    },
+    {
+      "path": "agent-skills/pi-forge-review-contract/SKILL.md",
+      "status": "mapped",
+      "behaviorIds": [
+        "protected-agent-policy"
+      ]
+    },
+    {
+      "path": "agent-skills/pi-forge-writing-contract/SKILL.md",
+      "status": "mapped",
+      "behaviorIds": [
+        "protected-agent-policy"
+      ]
+    },
+    {
+      "path": "agents/architecture-reviewer.md",
+      "status": "mapped",
+      "behaviorIds": [
+        "protected-agent-policy"
+      ]
+    },
+    {
+      "path": "agents/database-reviewer.md",
+      "status": "mapped",
+      "behaviorIds": [
+        "protected-agent-policy"
+      ]
+    },
+    {
+      "path": "agents/dependency-reviewer.md",
+      "status": "mapped",
+      "behaviorIds": [
+        "protected-agent-policy"
+      ]
+    },
+    {
+      "path": "agents/dx-reviewer.md",
+      "status": "mapped",
+      "behaviorIds": [
+        "protected-agent-policy"
+      ]
+    },
+    {
+      "path": "agents/independent-critic.md",
+      "status": "mapped",
+      "behaviorIds": [
+        "expert-panel"
+      ]
+    },
+    {
+      "path": "agents/opinion-synthesizer.md",
+      "status": "mapped",
+      "behaviorIds": [
+        "expert-panel"
+      ]
+    },
+    {
+      "path": "agents/performance-reviewer.md",
+      "status": "mapped",
+      "behaviorIds": [
+        "protected-agent-policy"
+      ]
+    },
+    {
+      "path": "agents/security-reviewer.md",
+      "status": "mapped",
+      "behaviorIds": [
+        "protected-agent-policy"
+      ]
+    },
+    {
+      "path": "agents/software-engineer.md",
+      "status": "mapped",
+      "behaviorIds": [
+        "protected-agent-policy"
+      ]
+    },
+    {
+      "path": "agents/tech-writer.md",
+      "status": "mapped",
+      "behaviorIds": [
+        "protected-agent-policy"
+      ]
+    },
+    {
+      "path": "agents/test-reviewer.md",
+      "status": "mapped",
+      "behaviorIds": [
+        "protected-agent-policy"
+      ]
+    },
+    {
+      "path": "chains/second-opinion.chain.json",
+      "status": "mapped",
+      "behaviorIds": [
+        "expert-panel"
+      ]
+    },
+    {
+      "path": "docs/architecture.md",
+      "status": "mapped",
+      "behaviorIds": [
+        "expert-panel",
+        "protected-agent-policy"
+      ]
+    },
+    {
+      "path": "docs/parity.md",
+      "status": "mapped",
+      "behaviorIds": [
+        "expert-panel"
+      ]
+    },
+    {
+      "path": "docs/pi-subagents-resume-contract.md",
+      "status": "mapped",
+      "behaviorIds": [
+        "protected-agent-policy"
+      ]
+    },
+    {
+      "path": "docs/second-opinion.md",
+      "status": "mapped",
+      "behaviorIds": [
+        "expert-panel"
+      ]
+    },
+    {
+      "path": "extensions/agent-policy.ts",
+      "status": "mapped",
+      "behaviorIds": [
+        "expert-panel",
+        "protected-agent-policy"
+      ]
+    },
+    {
+      "path": "extensions/lifecycle.ts",
+      "status": "mapped",
+      "behaviorIds": [
+        "protected-agent-policy"
+      ]
+    },
+    {
+      "path": "extensions/second-opinion.ts",
+      "status": "mapped",
+      "behaviorIds": [
+        "expert-panel"
+      ]
+    },
+    {
+      "path": "package-lock.json",
+      "status": "mapped",
+      "behaviorIds": [
+        "expert-panel",
+        "protected-agent-policy"
+      ]
+    },
+    {
+      "path": "package.json",
+      "status": "mapped",
+      "behaviorIds": [
+        "expert-panel",
+        "protected-agent-policy"
+      ]
+    },
+    {
+      "path": "prompts/second-opinion.md",
+      "status": "mapped",
+      "behaviorIds": [
+        "expert-panel"
+      ]
+    },
+    {
+      "path": "scripts/build-reviewers.mjs",
+      "status": "mapped",
+      "behaviorIds": [
+        "protected-agent-policy"
+      ]
+    },
+    {
+      "path": "scripts/build-second-opinion.mjs",
+      "status": "mapped",
+      "behaviorIds": [
+        "expert-panel"
+      ]
+    },
+    {
+      "path": "scripts/build-tech-writer.mjs",
+      "status": "mapped",
+      "behaviorIds": [
+        "protected-agent-policy"
+      ]
+    },
+    {
+      "path": "scripts/check-package.mjs",
+      "status": "mapped",
+      "behaviorIds": [
+        "expert-panel",
+        "protected-agent-policy"
+      ]
+    },
+    {
+      "path": "scripts/check-runtime-resources.mjs",
+      "status": "mapped",
+      "behaviorIds": [
+        "expert-panel",
+        "protected-agent-policy"
+      ]
+    },
+    {
+      "path": "scripts/test-pi-subagents-upgrade.mjs",
+      "status": "mapped",
+      "behaviorIds": [
+        "expert-panel"
+      ]
+    },
+    {
+      "path": "skills/orchestrator/SKILL.md",
+      "status": "mapped",
+      "behaviorIds": [
+        "protected-agent-policy"
+      ]
+    },
+    {
+      "path": "skills/plan-forge/SKILL.md",
+      "status": "mapped",
+      "behaviorIds": [
+        "expert-panel"
+      ]
+    },
+    {
+      "path": "skills/plan-forge/references/implementation-prompt.md",
+      "status": "mapped",
+      "behaviorIds": [
+        "protected-agent-policy"
+      ]
+    },
+    {
+      "path": "skills/pr-review/SKILL.md",
+      "status": "mapped",
+      "behaviorIds": [
+        "expert-panel"
+      ]
+    },
+    {
+      "path": "skills/pr-review/references/output-format.md",
+      "status": "mapped",
+      "behaviorIds": [
+        "expert-panel"
+      ]
+    },
+    {
+      "path": "skills/second-opinion/SKILL.md",
+      "status": "mapped",
+      "behaviorIds": [
+        "expert-panel"
+      ]
+    },
+    {
+      "path": "src/agent-policy-config.js",
+      "status": "mapped",
+      "behaviorIds": [
+        "protected-agent-policy"
+      ]
+    },
+    {
+      "path": "src/reviewer-config.js",
+      "status": "mapped",
+      "behaviorIds": [
+        "protected-agent-policy"
+      ]
+    },
+    {
+      "path": "src/second-opinion-config.js",
+      "status": "mapped",
+      "behaviorIds": [
+        "expert-panel",
+        "protected-agent-policy"
+      ]
+    },
+    {
+      "path": "src/second-opinion-integrity.js",
+      "status": "mapped",
+      "behaviorIds": [
+        "expert-panel"
+      ]
+    },
+    {
+      "path": "src/session-telemetry.js",
+      "status": "mapped",
+      "behaviorIds": [
+        "protected-agent-policy"
+      ]
+    },
+    {
+      "path": "src/tech-writer-config.js",
+      "status": "mapped",
+      "behaviorIds": [
+        "protected-agent-policy"
+      ]
+    },
+    {
+      "path": "tests/agent-policy.test.ts",
+      "status": "mapped",
+      "behaviorIds": [
+        "protected-agent-policy"
+      ]
+    },
+    {
+      "path": "tests/engineering-core.test.ts",
+      "status": "mapped",
+      "behaviorIds": [
+        "protected-agent-policy"
+      ]
+    },
+    {
+      "path": "tests/lifecycle.test.ts",
+      "status": "mapped",
+      "behaviorIds": [
+        "protected-agent-policy"
+      ]
+    },
+    {
+      "path": "tests/orchestration.test.ts",
+      "status": "mapped",
+      "behaviorIds": [
+        "expert-panel",
+        "protected-agent-policy"
+      ]
+    },
+    {
+      "path": "tests/reviewer-fleet.test.ts",
+      "status": "mapped",
+      "behaviorIds": [
+        "protected-agent-policy"
+      ]
+    },
+    {
+      "path": "tests/second-opinion.test.ts",
+      "status": "mapped",
+      "behaviorIds": [
+        "expert-panel"
+      ]
+    },
+    {
+      "path": "tests/tech-writer.test.ts",
+      "status": "mapped",
+      "behaviorIds": [
+        "protected-agent-policy"
+      ]
+    }
+  ],
+  "unmappedWorkflows": [
+    {
+      "id": "lifecycle-enforcement",
+      "title": "Lifecycle enforcement",
+      "rationale": "Only its protected writer identity consumer is coupled to this pilot."
+    },
+    {
+      "id": "session-telemetry",
+      "title": "Session telemetry",
+      "rationale": "Only its protected writer launch classification is coupled to this pilot."
+    },
+    {
+      "id": "deterministic-scoring",
+      "title": "Deterministic scoring",
+      "rationale": "Outside the two-workflow pilot."
+    },
+    {
+      "id": "source-control",
+      "title": "Source control",
+      "rationale": "Outside the two-workflow pilot."
+    },
+    {
+      "id": "planning-delivery",
+      "title": "Planning and orchestration delivery",
+      "rationale": "Only direct Expert Panel and protected writer references are coupled to this pilot."
+    },
+    {
+      "id": "pr-review",
+      "title": "PR review",
+      "rationale": "Only its Expert Panel entry path is coupled to this pilot."
+    }
+  ]
+}

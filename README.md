@@ -139,6 +139,27 @@ make check
 make test-e2e
 ```
 
+### Maintainer Behavior Map
+
+The trusted source checkout includes a project-only Behavior Map for maintainers changing Expert Panel or protected-agent launch and resume policy. It is discovered from `.pi/skills/pi-forge-handbook/` and is deliberately excluded from the npm package and public skill catalog.
+
+Load it inside the Pi Forge repository when localizing either mapped workflow:
+
+```text
+/skill:pi-forge-handbook
+```
+
+The map provides a direct behavior index, cross-file registers, typed source locators, generated-artifact provenance, and explicit unmapped workflow boundaries. It is a location index, not source authority: reopen every locator in the current repository before planning or editing. Its lexical discovery vocabulary cannot prove semantic completeness.
+
+Run the structural and advisory freshness checks directly with:
+
+```bash
+npm run check:behavior-map
+npm run check:behavior-map:freshness
+```
+
+The structural check is also part of `npm run check`. A stale fingerprint freezes the affected card for trusted routing but does not prove that its prose is wrong. After reviewing the changed source and relevant cards, refresh the fixed snapshot explicitly with `npm run refresh:behavior-map`; this never runs automatically.
+
 Test the newest pi-subagents release without changing the working tree:
 
 ```bash

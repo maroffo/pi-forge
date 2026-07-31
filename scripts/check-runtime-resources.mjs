@@ -164,6 +164,32 @@ async function assertResourceDiscovery(packageRoot, configDir) {
   }
 }
 
+async function assertProjectBehaviorMapDiscovery(sourceRoot, configDir) {
+  const { stdout } = await run("pi", [
+    "--mode",
+    "rpc",
+    "--no-session",
+    "--no-extensions",
+    "--approve",
+  ], {
+    cwd: sourceRoot,
+    env: minimalEnvironment(configDir),
+    input: `${JSON.stringify({ type: "get_commands" })}\n`,
+  });
+  const response = parseRpcResponse(stdout, "get_commands");
+  if (!response.success) throw new Error(response.error ?? "Pi project skill discovery failed");
+  const commands = response.data?.commands ?? response.commands ?? [];
+  const command = commands.find((candidate) => candidate.name === "skill:pi-forge-handbook");
+  if (
+    !command
+    || command.source !== "skill"
+    || command.sourceInfo?.scope !== "project"
+    || command.sourceInfo?.origin !== "top-level"
+  ) {
+    throw new Error(`Pi did not discover the project-only Behavior Map: ${JSON.stringify(command)}`);
+  }
+}
+
 async function assertSecondOpinionPromptExpansion(packageRoot, configDir, temporaryRoot) {
   const resultPath = join(temporaryRoot, "second-opinion-prompt.json");
   const probePath = join(temporaryRoot, "second-opinion-prompt-probe.ts");
@@ -939,6 +965,12 @@ async function main() {
     const packedPaths = new Set(pack.files.map((file) => file.path));
     const missing = REQUIRED_PACK_PATHS.filter((path) => !packedPaths.has(path));
     if (missing.length > 0) throw new Error(`publish artifact is missing: ${missing.join(", ")}`);
+    const leakedProjectMap = pack.files
+      .map((file) => file.path)
+      .filter((path) => path === ".pi" || path.startsWith(".pi/"));
+    if (leakedProjectMap.length > 0) {
+      throw new Error(`project-only Behavior Map leaked into publish artifact: ${leakedProjectMap.join(", ")}`);
+    }
     const packedReviewers = pack.files
       .map((file) => /^agents\/(.+-reviewer)\.md$/.exec(file.path)?.[1])
       .filter(Boolean)
@@ -993,6 +1025,7 @@ async function main() {
       `---\nname: pi-forge-writing-contract\ndescription: Collision fixture that must not override the compiled agent contract.\n---\n\nCollision fixture.\n`,
     );
 
+    await assertProjectBehaviorMapDiscovery(ROOT, configDir);
     await assertResourceDiscovery(packageRoot, configDir);
     await assertSecondOpinionPromptExpansion(packageRoot, configDir, temporaryRoot);
     await assertExtensionDiscovery(packageRoot, configDir);
@@ -1009,6 +1042,7 @@ async function main() {
       reviewerAgents: REVIEWER_NAMES.map((name) => `pi-forge.${name}`),
       privateContractCollisions: "rejected",
       protectedAgentPolicy: "verified",
+      projectBehaviorMap: "discovered-no-provider",
       secondOpinionPrompt: "expanded-and-aborted-before-provider",
       modelInvocationRequested: false,
     }));

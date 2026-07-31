@@ -78,6 +78,18 @@ Direct RPC launch is outside this protected path. The parent records run classif
 
 A true protected resume requires an atomic pi-subagents resume contract and single-use token. The upstream API proposal is in `pi-subagents-resume-contract.md`. As with second-opinion preflight, concurrent hostile local mutation between preflight and execution remains outside the current extension boundary.
 
+## Maintainer Behavior Map pilot
+
+The trusted Pi Forge source project exposes `.pi/skills/pi-forge-handbook` as a maintainer-only location index. It maps only Expert Panel and protected-agent launch/resume policy. The npm package does not publish `.pi/`, and the public package skill roster remains unchanged.
+
+The map routes from one direct index to concise behavior cards and cross-file registers. Typed locators cover regular files, JavaScript or TypeScript declarations, Markdown headings, skill names, and JSON pointers. Agents must reopen every locator in current source before planning or editing. Cards contain no source bodies or persistent line numbers.
+
+Checker-owned roots and workflow vocabularies discover the lexical pilot universe independently of the manifest. Every discovered file must be mapped, explicitly unmapped, or excluded with a rationale. This catches known vocabulary in new files but cannot prove semantic completeness.
+
+`npm run check:behavior-map` enforces structural validity and is part of the standard source check. `npm run check:behavior-map:freshness` separately compares canonical authored files with an explicit whole-file snapshot. Drift freezes the affected card for trusted routing, but it is a review signal rather than proof that the prose is wrong. Generated outputs are linked to fingerprinted canonical inputs and remain governed by their existing generator checks. `npm run refresh:behavior-map` is an explicit post-review action and never runs automatically.
+
+The pilot does not change `plan-forge`, `orchestrator`, runtime extensions, or the ExecPlan template. Promotion requires evidence from at least three real planning tasks: sites surfaced, sites missed, stale false positives, navigation and token cost, and maintenance work.
+
 ## Delivery workflows
 
 `/second-opinion` is a prompt alias for a parent-model skill. The skill gathers only decision-relevant evidence, labels facts and uncertainties, and calls `convene_expert_panel` with a structured brief. The tool requires substantive fields and at least two distinct questions, opens the exact payload for user inspection or redaction, and binds the next consent dialog to its digest. It then owns the existing chain validation, runtime check, two preflights, and RPC spawn. `/expert-panel` exposes the same launcher directly for an artifact that is already self-contained, without a parent-model preparation turn.

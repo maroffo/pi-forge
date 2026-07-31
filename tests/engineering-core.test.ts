@@ -24,6 +24,19 @@ test("package exposes engineering skills and the commit prompt", async () => {
   assert.ok(manifest.files.includes("prompts/"));
 });
 
+test("behavior map remains a project-only source navigator", async () => {
+  const manifest = JSON.parse(await text("package.json"));
+  const skill = await text(".pi/skills/pi-forge-handbook/SKILL.md");
+
+  assert.ok(manifest.files.every((path: string) => !path.startsWith(".pi")));
+  assert.deepEqual(manifest.pi.skills, ["./skills"]);
+  assert.match(skill, /location index, not source authority/);
+  assert.match(skill, /npm run check:behavior-map:freshness/);
+  assert.match(skill, /freeze that card for localization/);
+  assert.match(skill, /Never refresh fingerprints automatically/);
+  assert.match(skill, /at least three real planning uses/);
+});
+
 test("npm release metadata and installation instructions stay explicit", async () => {
   const manifest = JSON.parse(await text("package.json"));
   const readme = await text("README.md");
