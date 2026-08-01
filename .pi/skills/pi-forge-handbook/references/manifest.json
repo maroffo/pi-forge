@@ -30,24 +30,34 @@
         "independent-critic-agent",
         "opinion-synthesizer-agent",
         "package-runtime-version",
-        "lock-runtime-version"
+        "lock-runtime-version",
+        "socratic-analysis-skill",
+        "socratic-analysis-prompt",
+        "socratic-analysis-doc",
+        "socratic-analyst-agent",
+        "automatic-panel-command-parser",
+        "automatic-panel-payload-gate"
       ],
       "testPaths": [
         "tests/orchestration.test.ts",
-        "tests/second-opinion.test.ts"
+        "tests/second-opinion.test.ts",
+        "tests/socratic-analysis.test.ts"
       ],
       "fingerprintPaths": [
         "README.md",
         "agents/independent-critic.md",
         "agents/opinion-synthesizer.md",
+        "agents/socratic-analyst.md",
         "docs/architecture.md",
         "docs/parity.md",
         "docs/second-opinion.md",
+        "docs/socratic-analysis.md",
         "extensions/agent-policy.ts",
         "extensions/second-opinion.ts",
         "package-lock.json",
         "package.json",
         "prompts/second-opinion.md",
+        "prompts/socratic-analysis.md",
         "scripts/build-second-opinion.mjs",
         "scripts/check-package.mjs",
         "scripts/check-runtime-resources.mjs",
@@ -56,6 +66,7 @@
         "skills/pr-review/SKILL.md",
         "skills/pr-review/references/output-format.md",
         "skills/second-opinion/SKILL.md",
+        "skills/socratic-analysis/SKILL.md",
         "src/second-opinion-config.js"
       ],
       "generatedArtifacts": [
@@ -103,7 +114,10 @@
         "writing-contract-skill",
         "protected-review-contract",
         "package-runtime-version",
-        "lock-runtime-version"
+        "lock-runtime-version",
+        "socratic-analyst-agent-name",
+        "socratic-analyst-agent",
+        "socratic-analysis-skill"
       ],
       "testPaths": [
         "tests/agent-policy.test.ts",
@@ -111,6 +125,7 @@
         "tests/lifecycle.test.ts",
         "tests/orchestration.test.ts",
         "tests/reviewer-fleet.test.ts",
+        "tests/socratic-analysis.test.ts",
         "tests/tech-writer.test.ts"
       ],
       "fingerprintPaths": [
@@ -118,9 +133,11 @@
         "agent-skills/pi-forge-implementation-contract/SKILL.md",
         "agent-skills/pi-forge-review-contract/SKILL.md",
         "agent-skills/pi-forge-writing-contract/SKILL.md",
+        "agents/socratic-analyst.md",
         "agents/software-engineer.md",
         "docs/architecture.md",
         "docs/pi-subagents-resume-contract.md",
+        "docs/socratic-analysis.md",
         "extensions/agent-policy.ts",
         "extensions/lifecycle.ts",
         "package-lock.json",
@@ -131,6 +148,7 @@
         "scripts/check-runtime-resources.mjs",
         "skills/orchestrator/SKILL.md",
         "skills/plan-forge/references/implementation-prompt.md",
+        "skills/socratic-analysis/SKILL.md",
         "src/agent-policy-config.js",
         "src/reviewer-config.js",
         "src/second-opinion-config.js",
@@ -246,7 +264,8 @@
         "writer-agent-name",
         "protected-launch-validator",
         "lifecycle-writer-agent",
-        "telemetry-writer-input"
+        "telemetry-writer-input",
+        "socratic-analyst-agent-name"
       ]
     },
     {
@@ -471,17 +490,50 @@
       "path": "docs/architecture.md",
       "heading": "Review contract",
       "level": 2
+    },
+    {
+      "id": "socratic-analysis-skill",
+      "type": "skill-name",
+      "path": "skills/socratic-analysis/SKILL.md",
+      "name": "socratic-analysis"
+    },
+    {
+      "id": "socratic-analysis-prompt",
+      "type": "file",
+      "path": "prompts/socratic-analysis.md"
+    },
+    {
+      "id": "socratic-analysis-doc",
+      "type": "markdown-heading",
+      "path": "docs/socratic-analysis.md",
+      "heading": "Entry points",
+      "level": 2
+    },
+    {
+      "id": "socratic-analyst-agent",
+      "type": "file",
+      "path": "agents/socratic-analyst.md"
+    },
+    {
+      "id": "socratic-analyst-agent-name",
+      "type": "code-declaration",
+      "path": "src/agent-policy-config.js",
+      "identifier": "SOCRATIC_ANALYST_AGENT_NAME"
+    },
+    {
+      "id": "automatic-panel-command-parser",
+      "type": "code-declaration",
+      "path": "extensions/second-opinion.ts",
+      "identifier": "parseAutoPanelCommand"
+    },
+    {
+      "id": "automatic-panel-payload-gate",
+      "type": "code-declaration",
+      "path": "extensions/second-opinion.ts",
+      "identifier": "automaticPanelPayloadRejection"
     }
   ],
   "surfaces": [
-    {
-      "path": "README.md",
-      "status": "mapped",
-      "behaviorIds": [
-        "expert-panel",
-        "protected-agent-policy"
-      ]
-    },
     {
       "path": "agent-skills/pi-forge-implementation-contract/SKILL.md",
       "status": "mapped",
@@ -560,6 +612,14 @@
       ]
     },
     {
+      "path": "agents/socratic-analyst.md",
+      "status": "mapped",
+      "behaviorIds": [
+        "expert-panel",
+        "protected-agent-policy"
+      ]
+    },
+    {
       "path": "agents/software-engineer.md",
       "status": "mapped",
       "behaviorIds": [
@@ -617,6 +677,14 @@
       ]
     },
     {
+      "path": "docs/socratic-analysis.md",
+      "status": "mapped",
+      "behaviorIds": [
+        "expert-panel",
+        "protected-agent-policy"
+      ]
+    },
+    {
       "path": "extensions/agent-policy.ts",
       "status": "mapped",
       "behaviorIds": [
@@ -659,6 +727,21 @@
       "status": "mapped",
       "behaviorIds": [
         "expert-panel"
+      ]
+    },
+    {
+      "path": "prompts/socratic-analysis.md",
+      "status": "mapped",
+      "behaviorIds": [
+        "expert-panel"
+      ]
+    },
+    {
+      "path": "README.md",
+      "status": "mapped",
+      "behaviorIds": [
+        "expert-panel",
+        "protected-agent-policy"
       ]
     },
     {
@@ -713,13 +796,6 @@
       ]
     },
     {
-      "path": "skills/plan-forge/SKILL.md",
-      "status": "mapped",
-      "behaviorIds": [
-        "expert-panel"
-      ]
-    },
-    {
       "path": "skills/plan-forge/references/implementation-prompt.md",
       "status": "mapped",
       "behaviorIds": [
@@ -727,7 +803,7 @@
       ]
     },
     {
-      "path": "skills/pr-review/SKILL.md",
+      "path": "skills/plan-forge/SKILL.md",
       "status": "mapped",
       "behaviorIds": [
         "expert-panel"
@@ -741,10 +817,25 @@
       ]
     },
     {
+      "path": "skills/pr-review/SKILL.md",
+      "status": "mapped",
+      "behaviorIds": [
+        "expert-panel"
+      ]
+    },
+    {
       "path": "skills/second-opinion/SKILL.md",
       "status": "mapped",
       "behaviorIds": [
         "expert-panel"
+      ]
+    },
+    {
+      "path": "skills/socratic-analysis/SKILL.md",
+      "status": "mapped",
+      "behaviorIds": [
+        "expert-panel",
+        "protected-agent-policy"
       ]
     },
     {
@@ -831,6 +922,14 @@
       "status": "mapped",
       "behaviorIds": [
         "expert-panel"
+      ]
+    },
+    {
+      "path": "tests/socratic-analysis.test.ts",
+      "status": "mapped",
+      "behaviorIds": [
+        "expert-panel",
+        "protected-agent-policy"
       ]
     },
     {

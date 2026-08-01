@@ -90,9 +90,21 @@ Checker-owned roots and workflow vocabularies discover the lexical pilot univers
 
 The pilot does not change `plan-forge`, `orchestrator`, runtime extensions, or the ExecPlan template. Promotion requires evidence from at least three real planning tasks: sites surfaced, sites missed, stale false positives, navigation and token cost, and maintenance work.
 
+## Maintainer release boundary
+
+Pi Forge release policy is source-project tooling, not a public package capability. `.pi/skills/pi-forge-release` owns the prepare, tag, publish, verify, reconcile, and bad-release recovery protocol. `scripts/check-release.mjs` runs only fixed Pi Forge verification commands, temporary pack probes, and read-only Git, GitHub, and npm queries. It reports pass, fail, or indeterminate and never performs a Git or registry mutation.
+
+The preflight requires package, lockfile, README, exact HEAD, `origin/main`, both named GitHub workflows, tag provenance, registry state, pack roster, and phase-specific verification as applicable. Missing or ambiguous remote evidence fails closed. Static release evidence is validated before any project script or local pack command runs. Those commands receive a temporary HOME and a minimal environment without inherited release/provider credentials; the helper then recollects Git, tags, registry, and CI so project-side mutation invalidates the result. Tag creation, tag push, and npm publication remain separate explicit user authorizations. Unknown mutation results stop retry and enter reconcile.
+
+A trusted project extension adds a second ordinary-command confirmation for local tag creation and npm publication in Pi's Bash tool. It blocks forced tag creation unconditionally, blocks other covered calls headless, and is excluded from npm with all `.pi/` resources. It is a workflow guard, not state binding or a shell security parser: aliases, custom tools, user shells, external terminals, and obfuscation remain outside observation.
+
 ## Delivery workflows
 
-`/second-opinion` is a prompt alias for a parent-model skill. The skill gathers only decision-relevant evidence, labels facts and uncertainties, and calls `convene_expert_panel` with a structured brief. The tool requires substantive fields and at least two distinct questions, opens the exact payload for user inspection or redaction, and binds the next consent dialog to its digest. It then owns the existing chain validation, runtime check, two preflights, and RPC spawn. `/expert-panel` exposes the same launcher directly for an artifact that is already self-contained, without a parent-model preparation turn.
+`/socratic-analysis` is a prompt alias for a parent-owned conversational skill. The parent resolves the examination, asks at most one material question per turn, minimizes evidence, and launches `pi-forge.socratic-analyst` with a fresh artifact-only contract. The child has no inherited project context, skills, or tools and cannot invoke slash commands. By default, a recommendation requires a separate yes before the parent follows manual Second Opinion.
+
+`/auto-panel enable` adds a distinct, weaker consent boundary for true automatic escalation. An interactive, memory-only standing grant permits one later sanitized payload after a direct complete protected Socratic recommendation. The extension consumes the grant before launcher work, refuses reuse and recursion, resets on session start or reload, and rejects obvious sensitive-data shapes. The automatic tool reuses chain/runtime/ping/preflight mechanics but intentionally skips per-run editing and digest confirmation. Scanner success and model classification are not proof of privacy. Manual panel entry points never consult this state.
+
+`/second-opinion` is a prompt alias for a parent-model skill. The skill gathers only decision-relevant evidence, labels facts and uncertainties, and calls `convene_expert_panel` with a structured brief. The tool requires substantive fields and at least two distinct questions, opens the exact payload for user inspection or redaction, and binds the next consent dialog to its digest. It then owns chain validation, runtime check, two preflights, and RPC spawn. Every critic in the shared chain uses the same evidence-bound adversarial sequence: steelman, weakest dependency, concrete counterexample, falsification test, and surviving judgment. Synthesis promotes only supported surviving challenges; no finding is required. `/expert-panel` exposes the same adversarial launcher directly for an artifact that is already self-contained, without a parent-model preparation turn.
 
 `/plan-forge` turns issue or in-session evidence into a self-contained ExecPlan. It writes only a draft plan, records provider disclosure and consent when second opinion runs, and emits a fresh-session `/orchestrator` handoff. It does not implement, commit, or publish.
 
@@ -108,7 +120,17 @@ Lifecycle counters persist as custom entries outside model context. The one veri
 
 ## Session telemetry
 
-Telemetry is derived from the active Pi session branch and checkpointed as sanitized custom entries. It stores numeric usage and bucketed workflow counters only. The offline extractor emits schema-v1 JSONL without prompt, response, thinking, source, paths, commands, outputs, findings, environment, secrets, or provider/model identities. No trace file is created automatically and no telemetry leaves the machine without separate authorization.
+Telemetry is derived from the active Pi session branch and checkpointed as sanitized schema-v2 custom entries. One pure result classifier aligns aggregate and event semantics for successful direct source edits, genuinely launched protected writers, errors, and successful recognized verification. The offline extractor continues to accept historical raw Pi v2/v3 sessions and emits active-branch-only schema-v2 JSONL without prompt, response, thinking, source, paths, commands, outputs, findings, environment, secrets, or provider/model identities.
+
+The public cohort aggregator reads only 5 to 100 explicit regular non-symlink session files with per-file, line, count, cumulative-byte, filesystem-identity, and header-identity bounds. It emits totals, medians, counts, rates, and fixed warnings only. Duplicate header IDs stay internal, sessions without observed mutations are excluded from the final-mutation verification denominator, and no row, extrema, timestamp, ID, hash, or input path is exposed. Safe output is no-follow, non-overwriting by default, mode 0600, single-link, and distinct from every input.
+
+Harness interpretation is a separate project-only workflow. `skill:pi-forge-harness-audit` requires an operator-approved cohort artifact, explicit comparability assertion, separated observations, hypotheses, and gaps, and one falsifiable change contract. It does not read raw sessions by default, edit source, refresh the Behavior Map, claim causality, invoke another provider, or promote a mutation. Accepted contracts return to normal planning and approval. No trace or cohort file is created automatically, and no telemetry leaves the machine without exact-artifact authorization.
+
+## Project quality-gate onboarding
+
+`/project-checks` is a prompt-backed public skill with a deterministic, read-only metadata inspector. The inspector and `/score` share one conservative literal-Make policy, so onboarding cannot claim compatibility for syntax the score command rejects. Inspection reads only fixed, size-bounded, non-symlink root metadata for JavaScript/TypeScript, Python, Go, Ruby, and Rust. It does not run discovered scripts, inspect arbitrary files, install tools, or write a Makefile.
+
+Candidates retain their evidence class. An observed package script can support a parent-reviewed target proposal; a conventional ecosystem command remains a question for the user. Existing or duplicate required targets, unsupported Make syntax, conflicting package managers, and unsupported build systems freeze proposals. A project without a real E2E or user-flow command remains score-inconclusive rather than receiving a fabricated gate.
 
 ## Deterministic scoring
 

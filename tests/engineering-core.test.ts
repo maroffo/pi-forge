@@ -39,13 +39,88 @@ test("behavior map remains a project-only source navigator", async () => {
 
 test("npm release metadata and installation instructions stay explicit", async () => {
   const manifest = JSON.parse(await text("package.json"));
+  const lock = JSON.parse(await text("package-lock.json"));
   const readme = await text("README.md");
 
   assert.equal(manifest.repository.url, "git+https://github.com/maroffo/pi-forge.git");
   assert.equal(manifest.publishConfig.access, "public");
+  assert.equal(lock.version, manifest.version);
+  assert.equal(lock.packages[""].version, manifest.version);
   assert.match(readme, /pi install npm:pi-subagents@0\.37\.2/);
   assert.match(readme, /pi install npm:@maroffo\/pi-forge@0\.2\.0/);
   assert.match(readme, /execute extensions with the current user's permissions/);
+});
+
+test("Pi Forge release workflow stays project-only, phased, and non-publishing", async () => {
+  const manifest = JSON.parse(await text("package.json"));
+  const skill = await text(".pi/skills/pi-forge-release/SKILL.md");
+  const recovery = await text(".pi/skills/pi-forge-release/references/recovery.md");
+  const guard = await text(".pi/extensions/pi-forge-release-guard.ts");
+  const helper = await text("scripts/check-release.mjs");
+
+  assert.ok(manifest.files.every((path: string) => !path.startsWith(".pi") && path !== "scripts/"));
+  assert.match(skill, /name: pi-forge-release/);
+  for (const phase of ["Prepare", "Tag", "Publish", "Verify", "Reconcile"]) {
+    assert.match(skill, new RegExp(`## \\d?\\.? ?${phase}`, "i"));
+  }
+  assert.match(skill, /separate explicit user authorizations|authorization.*independently/is);
+  assert.match(skill, /do not retry/i);
+  assert.match(recovery, /Never automatically unpublish/);
+  assert.match(recovery, /dist-tag/);
+  assert.match(recovery, /corrected patch/);
+  assert.match(guard, /classifyReleaseCommand/);
+  assert.match(guard, /requires interactive confirmation/);
+  assert.match(helper, /validateReleaseSnapshot/);
+  assert.match(helper, /shell: false/);
+});
+
+test("harness audit stays project-only and requires one falsifiable privacy-preserving contract", async () => {
+  const manifest = JSON.parse(await text("package.json"));
+  const skill = await text(".pi/skills/pi-forge-harness-audit/SKILL.md");
+  const template = await text(".pi/skills/pi-forge-harness-audit/references/change-contract-template.md");
+  const publicSkill = await text("skills/session-telemetry/SKILL.md");
+  const aggregator = await text("skills/session-telemetry/scripts/aggregate-session-traces.mjs");
+
+  assert.ok(manifest.files.every((path: string) => !path.startsWith(".pi")));
+  assert.match(skill, /name: pi-forge-harness-audit/);
+  assert.match(skill, /5 through 100/);
+  assert.match(skill, /assert explicitly.*comparable/is);
+  assert.match(skill, /Observations:[\s\S]*Hypotheses:[\s\S]*Evidence gaps:/);
+  assert.match(skill, /One contract proposes one harness mutation/);
+  assert.match(skill, /Do not read raw Pi session files/);
+  assert.match(skill, /Do not edit source/);
+  assert.match(skill, /Do not refresh or expand the Behavior Map/);
+  assert.match(skill, /proof of causality|Do not claim that.*caused/is);
+  assert.match(skill, /Do not expose the artifact to another provider/);
+  assert.match(skill, /route it through a separately approved `plan-forge` or orchestrator plan/);
+  for (const heading of [
+    "Baseline cohort", "Primary hypothesis", "Proposed mutation", "Predicted effect", "Protected invariants",
+    "Evidence gaps", "Measurement protocol", "Falsification threshold", "Evaluation cohort", "Rollback", "Approval", "Result",
+  ]) assert.match(template, new RegExp(`## ${heading}`));
+  assert.match(publicSkill, /5 to 100 regular non-symlink/);
+  assert.match(publicSkill, /never emitted or hashed/);
+  assert.match(aggregator, /MIN_COHORT_SESSIONS = 5/);
+  assert.match(aggregator, /MAX_COHORT_SESSIONS = 100/);
+  assert.match(aggregator, /--input/);
+});
+
+test("project-checks is a truthful read-only onboarding workflow", async () => {
+  const skill = await text("skills/project-checks/SKILL.md");
+  const reference = await text("skills/project-checks/references/detection-contract.md");
+  const prompt = await text("prompts/project-checks.md");
+  const inspector = await text("skills/project-checks/scripts/inspect-project-checks.mjs");
+
+  assert.match(skill, /name: project-checks/);
+  assert.match(skill, /untrusted data/);
+  assert.match(skill, /Never generate `true`/);
+  assert.match(skill, /leave `test-e2e` unresolved/);
+  assert.match(skill, /Show the exact proposed diff/);
+  assert.match(reference, /evidence: observed/);
+  assert.match(reference, /`test` and `test:integration` are not relabelled as E2E/);
+  assert.match(prompt, /Load and follow the `project-checks` skill/);
+  assert.match(prompt, /Do not execute project code during inspection/);
+  assert.match(inspector, /inspectLiteralMakeTargets/);
+  assert.doesNotMatch(skill, /git add|git commit|npm install/);
 });
 
 test("source-control defines narrow commit and push authorization", async () => {

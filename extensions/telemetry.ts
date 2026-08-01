@@ -41,7 +41,7 @@ export default function telemetryExtension(pi: ExtensionAPI): void {
     if (!force && next === lastFingerprint) return;
     lastFingerprint = next;
     pi.appendEntry(TELEMETRY_ENTRY, {
-      version: 1,
+      version: 2,
       capturedAt: new Date().toISOString(),
       metrics,
     });

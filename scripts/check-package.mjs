@@ -17,6 +17,11 @@ const REQUIRED = [
   ".pi/skills/pi-forge-handbook/references/manifest.json",
   ".pi/skills/pi-forge-handbook/references/overview.md",
   ".pi/skills/pi-forge-handbook/references/registers.md",
+  ".pi/extensions/pi-forge-release-guard.ts",
+  ".pi/skills/pi-forge-release/SKILL.md",
+  ".pi/skills/pi-forge-release/references/recovery.md",
+  ".pi/skills/pi-forge-harness-audit/SKILL.md",
+  ".pi/skills/pi-forge-harness-audit/references/change-contract-template.md",
   "AGENTS.md.example",
   "agent-skills/pi-forge-implementation-contract/SKILL.md",
   "agent-skills/pi-forge-review-contract/SKILL.md",
@@ -27,6 +32,7 @@ const REQUIRED = [
   "agents/dx-reviewer.md",
   "agents/independent-critic.md",
   "agents/opinion-synthesizer.md",
+  "agents/socratic-analyst.md",
   "agents/performance-reviewer.md",
   "agents/security-reviewer.md",
   "agents/software-engineer.md",
@@ -36,23 +42,32 @@ const REQUIRED = [
   "prompts/commit.md",
   "prompts/orchestrator.md",
   "prompts/plan-forge.md",
+  "prompts/project-checks.md",
   "prompts/pr-review.md",
   "prompts/second-opinion.md",
+  "prompts/socratic-analysis.md",
   "scripts/check-behavior-map.mjs",
+  "scripts/check-release.mjs",
   "scripts/check-runtime-resources.mjs",
   "scripts/lib/behavior-map.mjs",
+  "scripts/lib/release-policy.mjs",
   "skills/orchestrator/SKILL.md",
   "skills/orchestrator/references/review-routing.md",
   "skills/plan-forge/SKILL.md",
   "skills/plan-forge/references/implementation-prompt.md",
   "skills/plan-forge/references/plan-template.md",
+  "skills/project-checks/SKILL.md",
+  "skills/project-checks/references/detection-contract.md",
+  "skills/project-checks/scripts/inspect-project-checks.mjs",
   "skills/pr-review/SKILL.md",
   "skills/pr-review/references/candidate-execution.md",
   "skills/pr-review/references/evidence.md",
   "skills/pr-review/references/output-format.md",
   "skills/refine-requirements/SKILL.md",
   "skills/second-opinion/SKILL.md",
+  "skills/socratic-analysis/SKILL.md",
   "skills/session-telemetry/SKILL.md",
+  "skills/session-telemetry/scripts/aggregate-session-traces.mjs",
   "skills/session-telemetry/scripts/extract-session-trace.mjs",
   "skills/source-control/SKILL.md",
   "skills/source-control/scripts/commit-gate.sh",
@@ -65,6 +80,7 @@ const REQUIRED = [
   "scripts/build-tech-writer.mjs",
   "src/agent-policy-config.js",
   "src/lifecycle-policy.js",
+  "src/makefile-policy.js",
   "src/session-telemetry.js",
   "src/reviewer-config.js",
   "src/second-opinion-config.js",
@@ -75,6 +91,7 @@ const REQUIRED = [
   "docs/pi-subagents-resume-contract.md",
   "docs/telemetry.md",
   "docs/second-opinion.md",
+  "docs/socratic-analysis.md",
 ];
 const TEXT_EXTENSIONS = new Set(["", ".example", ".js", ".md", ".json", ".mjs", ".sh", ".ts", ".txt", ".yaml", ".yml"]);
 const FORBIDDEN = [
@@ -134,6 +151,12 @@ if (!packageJson.bundledDependencies?.includes("pi-subagents")) {
 }
 
 const packageLock = JSON.parse(await readFile(join(ROOT, "package-lock.json"), "utf8"));
+if (packageLock.version !== packageJson.version) {
+  errors.push("package-lock top-level version must match package.json");
+}
+if (packageLock.packages?.[""]?.version !== packageJson.version) {
+  errors.push("package-lock root package version must match package.json");
+}
 if (packageLock.packages?.[""]?.dependencies?.["pi-subagents"] !== PI_SUBAGENTS_VERSION) {
   errors.push("package-lock root dependency must match PI_SUBAGENTS_VERSION");
 }
@@ -148,6 +171,14 @@ for (const path of await filesBelow(ROOT)) {
       errors.push(`${relative(ROOT, path)} contains ${forbidden.label}`);
     }
   }
+}
+
+const releaseGuardSyntax = spawnSync(process.execPath, ["--experimental-strip-types", "--check", ".pi/extensions/pi-forge-release-guard.ts"], {
+  cwd: ROOT,
+  encoding: "utf8",
+});
+if (releaseGuardSyntax.status !== 0) {
+  errors.push((releaseGuardSyntax.stderr || releaseGuardSyntax.stdout || "release guard syntax check failed").trim());
 }
 
 for (const [script, label] of [

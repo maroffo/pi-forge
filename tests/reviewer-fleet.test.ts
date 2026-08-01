@@ -21,6 +21,7 @@ const APPROVED_REVIEWERS = [
 const APPROVED_AGENT_FILES = [
   "independent-critic.md",
   "opinion-synthesizer.md",
+  "socratic-analyst.md",
   "software-engineer.md",
   "tech-writer.md",
   ...APPROVED_REVIEWERS.map((name) => `${name}.md`),
