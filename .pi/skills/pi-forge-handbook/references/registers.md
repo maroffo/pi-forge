@@ -16,7 +16,7 @@ Behavior: `expert-panel`.
 
 ## `protected-agent-identities`
 
-Canonical protected identities begin at `artifact-agent-names`, `writer-agent-name`, `reviewer-agent-names`, and `tech-writer-agent-name`. `protected-launch-validator` enforces their effective source and capability ceilings. `lifecycle-writer-agent` and `telemetry-writer-input` are coupled consumers that must remain consistent even though their wider workflows are outside the pilot.
+Canonical protected identities begin at `artifact-agent-names`, `writer-agent-name`, `reviewer-agent-names`, `tech-writer-agent-name`, and `socratic-analyst-agent-name`. `protected-launch-validator` enforces their effective source and capability ceilings. `lifecycle-writer-agent` and `telemetry-writer-input` are coupled consumers that must remain consistent even though their wider workflows are outside the pilot.
 
 Behavior: `protected-agent-policy`.
 

@@ -70,6 +70,21 @@ test("Make target discovery accepts only literal root definitions", () => {
   assert.deepEqual([...targets].sort(), [".PHONY", "check", "other", "test-e2e"]);
 });
 
+test("duplicate required Make targets are inconclusive", async () => {
+  const root = await fixture(false);
+  try {
+    const fake = fakePi(root, {});
+    await writeFile(join(root, "Makefile"), "check:\n\t@true\ncheck:\n\t@true\ntest-e2e:\n\t@true\n");
+    const result = await runScore(fake.api, root, "commit");
+    assert.equal(result.score, null);
+    assert.deepEqual(result.gates.map((gate) => gate.status), ["not-run", "not-run"]);
+    assert.match(result.gates[0]?.evidence ?? "", /multiple definitions/);
+    assert.equal(fake.calls.some((call) => call.command === "make"), false);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("escaped and conditional Make rules cannot fabricate gate discovery", async () => {
   const root = await fixture(false);
   try {

@@ -19,13 +19,16 @@ const OUTPUT = join(ROOT, "chains", "second-opinion.chain.json");
 const INTEGRITY_OUTPUT = join(ROOT, "src", "second-opinion-integrity.js");
 const PERSPECTIVES = ["A", "B", "C", "D"];
 
-const criticTask = `Evaluate the artifact independently using the rubric below. Do not identify your provider or speculate about other reviewers.
+const criticTask = `Act as an evidence-bound adversarial examiner. Review the artifact independently and do not identify your provider or speculate about other reviewers.
 
-Rubric:
-- correctness and internal consistency
-- hidden assumptions and missing evidence
-- concrete risks or counterexamples
-- smallest justified recommendation
+Use this exact reasoning sequence:
+1. Steelman: state the strongest supportable version of the subject before challenging it.
+2. Weakest dependency: identify the assumption, inference, or evidence dependency most likely to change the conclusion.
+3. Concrete counterexample: construct the strongest plausible failure scenario grounded in the supplied artifact.
+4. Falsification test: name the observation or executable/documentary evidence that would confirm or defeat the challenge.
+5. Surviving judgment: state what remains valid after the attack and the smallest justified recommendation.
+
+A challenge becomes a finding only when the supplied evidence supports it after this sequence. Do not manufacture dissent, reward novelty, or treat missing context as proof of a defect. If no challenge survives, use verdict accept and return an empty findings array. Report missing evidence under uncertainties.
 
 <artifact>
 {task}
@@ -34,10 +37,25 @@ Rubric:
 const criticSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["verdict", "summary", "findings", "uncertainties"],
+  required: [
+    "verdict",
+    "summary",
+    "steelman",
+    "weakestDependency",
+    "counterexample",
+    "falsificationTest",
+    "survivingJudgment",
+    "findings",
+    "uncertainties",
+  ],
   properties: {
     verdict: { type: "string", enum: ["accept", "revise", "reject", "inconclusive"] },
     summary: { type: "string" },
+    steelman: { type: "string" },
+    weakestDependency: { type: "string" },
+    counterexample: { type: "string" },
+    falsificationTest: { type: "string" },
+    survivingJudgment: { type: "string" },
     findings: {
       type: "array",
       items: {
@@ -62,6 +80,7 @@ const synthesisSchema = {
   additionalProperties: false,
   required: [
     "verdict",
+    "steelman",
     "consensus",
     "disagreements",
     "priorityFindings",
@@ -71,6 +90,7 @@ const synthesisSchema = {
   ],
   properties: {
     verdict: { type: "string", enum: ["accept", "revise", "reject", "inconclusive"] },
+    steelman: { type: "string" },
     consensus: { type: "array", items: { type: "string" } },
     disagreements: {
       type: "array",
@@ -126,7 +146,9 @@ function synthesisTask() {
     (label) => `<perspective-${label.toLowerCase()}>\n{outputs.perspective${label}}\n</perspective-${label.toLowerCase()}>`,
   ).join("\n\n");
 
-  return `Synthesize the four anonymous perspectives against the original artifact. Do not infer which provider produced a perspective. Agreement is not proof; preserve unresolved disagreement and identify evidence needed to resolve it.
+  return `Synthesize the four anonymous adversarial examinations against the original artifact. Do not infer which provider produced a perspective.
+
+First reconstruct the strongest supportable steelman. Promote a challenge to priorityFindings only when it survives the critic's attack and is supported by the supplied artifact or a concrete falsification path. Put unsupported, performative, duplicate, or missing-context attacks in discardedClaims with the reason. Agreement is not proof, majority vote is not evidence, and adversarial novelty is not value. Preserve unresolved disagreement and identify evidence needed to resolve it. If no challenge survives, verdict accept with an empty priorityFindings array is valid.
 
 <artifact>
 {task}
@@ -139,7 +161,7 @@ export function buildSecondOpinionChain() {
   return {
     name: "second-opinion",
     package: "pi-forge",
-    description: "Ask four isolated providers for independent opinions, then synthesize their evidence with minimized identity bias",
+    description: "Ask four isolated providers for a common evidence-bound adversarial examination, then synthesize only supported surviving challenges",
     chain: [
       {
         phase: "Independent review",

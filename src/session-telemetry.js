@@ -3,8 +3,8 @@
 
 import { isSourcePath, isVerificationCommand } from "./lifecycle-policy.js";
 
-export const TELEMETRY_ENTRY = "pi-forge.telemetry.v1";
-export const TRACE_VERSION = 1;
+export const TELEMETRY_ENTRY = "pi-forge.telemetry.v2";
+export const TRACE_VERSION = 2;
 
 const TOOL_BUCKETS = new Set(["bash", "edit", "find", "grep", "ls", "read", "subagent", "write"]);
 
@@ -14,7 +14,7 @@ export function toolBucket(value) {
 
 export function emptyMetrics() {
   return {
-    version: 1,
+    version: TRACE_VERSION,
     userTurns: 0,
     assistantMessages: 0,
     toolCalls: { bash: 0, edit: 0, find: 0, grep: 0, ls: 0, other: 0, read: 0, subagent: 0, write: 0 },
@@ -72,6 +72,38 @@ function writerInInput(value) {
   return value.parallel && !Array.isArray(value.parallel) ? writerInInput(value.parallel) : false;
 }
 
+function isWriterExecution(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value) || !writerInInput(value)) return false;
+  if (typeof value.action !== "string") return true;
+  const action = value.action.toLowerCase();
+  return action === "single" && (value.agent !== undefined || value.task !== undefined)
+    || (action === "parallel" || action === "tasks") && Array.isArray(value.tasks) && value.tasks.length > 0;
+}
+
+function hasLaunchIdentity(message) {
+  const runId = message?.details?.runId ?? message?.details?.asyncId;
+  return typeof runId === "string" && runId.length > 0;
+}
+
+export function classifyToolResult(call, message) {
+  const tool = toolBucket(message?.toolName ?? call?.name);
+  const isError = message?.isError === true;
+  const directMutation = !isError
+    && (tool === "write" || tool === "edit")
+    && isSourcePath(call?.input?.path);
+  const protectedWriterMutation = tool === "subagent"
+    && isWriterExecution(call?.input)
+    && hasLaunchIdentity(message);
+  return {
+    tool,
+    isError,
+    sourceMutation: directMutation || protectedWriterMutation,
+    successfulVerification: !isError
+      && tool === "bash"
+      && isVerificationCommand(call?.input?.command),
+  };
+}
+
 export function activeBranch(entries) {
   if (!Array.isArray(entries) || entries.length === 0) return [];
   const withIds = entries.filter((entry) => entry && typeof entry === "object" && typeof entry.id === "string");
@@ -127,18 +159,10 @@ export function deriveMetrics(entries) {
     }
     if (message.role !== "toolResult") continue;
     const call = calls.get(message.toolCallId);
-    const name = toolBucket(message.toolName ?? call?.name);
-    if (message.isError) metrics.toolErrors += 1;
-    if (!message.isError && (name === "write" || name === "edit") && isSourcePath(call?.input?.path)) {
-      metrics.sourceMutations += 1;
-    }
-    if (name === "subagent" && writerInInput(call?.input)) {
-      const runId = message.details?.runId ?? message.details?.asyncId;
-      if (!message.isError || (typeof runId === "string" && runId.length > 0)) metrics.sourceMutations += 1;
-    }
-    if (!message.isError && name === "bash" && isVerificationCommand(call?.input?.command)) {
-      metrics.successfulVerifications += 1;
-    }
+    const result = classifyToolResult(call, message);
+    if (result.isError) metrics.toolErrors += 1;
+    if (result.sourceMutation) metrics.sourceMutations += 1;
+    if (result.successfulVerification) metrics.successfulVerifications += 1;
     addUsage(metrics, message.usage);
   }
 
@@ -233,13 +257,7 @@ export function extractTrace(entries) {
     }
     if (message.role !== "toolResult") continue;
     const call = calls.get(message.toolCallId);
-    const name = toolBucket(message.toolName ?? call?.name);
-    emit("tool_result", entry, {
-      tool: name,
-      isError: message.isError === true,
-      sourceMutation: !message.isError && (name === "write" || name === "edit") && isSourcePath(call?.input?.path),
-      successfulVerification: !message.isError && name === "bash" && isVerificationCommand(call?.input?.command),
-    });
+    emit("tool_result", entry, classifyToolResult(call, message));
   }
   return trace;
 }

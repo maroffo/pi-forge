@@ -1,7 +1,7 @@
 {
   "name": "second-opinion",
   "package": "pi-forge",
-  "description": "Ask four isolated providers for independent opinions, then synthesize their evidence with minimized identity bias",
+  "description": "Ask four isolated providers for a common evidence-bound adversarial examination, then synthesize only supported surviving challenges",
   "chain": [
     {
       "phase": "Independent review",
@@ -12,13 +12,18 @@
           "model": "openai-codex/gpt-5.6-sol",
           "as": "perspectiveA",
           "progress": false,
-          "task": "Evaluate the artifact independently using the rubric below. Do not identify your provider or speculate about other reviewers.\n\nRubric:\n- correctness and internal consistency\n- hidden assumptions and missing evidence\n- concrete risks or counterexamples\n- smallest justified recommendation\n\n<artifact>\n{task}\n</artifact>",
+          "task": "Act as an evidence-bound adversarial examiner. Review the artifact independently and do not identify your provider or speculate about other reviewers.\n\nUse this exact reasoning sequence:\n1. Steelman: state the strongest supportable version of the subject before challenging it.\n2. Weakest dependency: identify the assumption, inference, or evidence dependency most likely to change the conclusion.\n3. Concrete counterexample: construct the strongest plausible failure scenario grounded in the supplied artifact.\n4. Falsification test: name the observation or executable/documentary evidence that would confirm or defeat the challenge.\n5. Surviving judgment: state what remains valid after the attack and the smallest justified recommendation.\n\nA challenge becomes a finding only when the supplied evidence supports it after this sequence. Do not manufacture dissent, reward novelty, or treat missing context as proof of a defect. If no challenge survives, use verdict accept and return an empty findings array. Report missing evidence under uncertainties.\n\n<artifact>\n{task}\n</artifact>",
           "outputSchema": {
             "type": "object",
             "additionalProperties": false,
             "required": [
               "verdict",
               "summary",
+              "steelman",
+              "weakestDependency",
+              "counterexample",
+              "falsificationTest",
+              "survivingJudgment",
               "findings",
               "uncertainties"
             ],
@@ -33,6 +38,21 @@
                 ]
               },
               "summary": {
+                "type": "string"
+              },
+              "steelman": {
+                "type": "string"
+              },
+              "weakestDependency": {
+                "type": "string"
+              },
+              "counterexample": {
+                "type": "string"
+              },
+              "falsificationTest": {
+                "type": "string"
+              },
+              "survivingJudgment": {
                 "type": "string"
               },
               "findings": {
@@ -91,13 +111,18 @@
           "model": "anthropic/claude-fable-5",
           "as": "perspectiveB",
           "progress": false,
-          "task": "Evaluate the artifact independently using the rubric below. Do not identify your provider or speculate about other reviewers.\n\nRubric:\n- correctness and internal consistency\n- hidden assumptions and missing evidence\n- concrete risks or counterexamples\n- smallest justified recommendation\n\n<artifact>\n{task}\n</artifact>",
+          "task": "Act as an evidence-bound adversarial examiner. Review the artifact independently and do not identify your provider or speculate about other reviewers.\n\nUse this exact reasoning sequence:\n1. Steelman: state the strongest supportable version of the subject before challenging it.\n2. Weakest dependency: identify the assumption, inference, or evidence dependency most likely to change the conclusion.\n3. Concrete counterexample: construct the strongest plausible failure scenario grounded in the supplied artifact.\n4. Falsification test: name the observation or executable/documentary evidence that would confirm or defeat the challenge.\n5. Surviving judgment: state what remains valid after the attack and the smallest justified recommendation.\n\nA challenge becomes a finding only when the supplied evidence supports it after this sequence. Do not manufacture dissent, reward novelty, or treat missing context as proof of a defect. If no challenge survives, use verdict accept and return an empty findings array. Report missing evidence under uncertainties.\n\n<artifact>\n{task}\n</artifact>",
           "outputSchema": {
             "type": "object",
             "additionalProperties": false,
             "required": [
               "verdict",
               "summary",
+              "steelman",
+              "weakestDependency",
+              "counterexample",
+              "falsificationTest",
+              "survivingJudgment",
               "findings",
               "uncertainties"
             ],
@@ -112,6 +137,21 @@
                 ]
               },
               "summary": {
+                "type": "string"
+              },
+              "steelman": {
+                "type": "string"
+              },
+              "weakestDependency": {
+                "type": "string"
+              },
+              "counterexample": {
+                "type": "string"
+              },
+              "falsificationTest": {
+                "type": "string"
+              },
+              "survivingJudgment": {
                 "type": "string"
               },
               "findings": {
@@ -170,13 +210,18 @@
           "model": "google/gemini-3.6-flash",
           "as": "perspectiveC",
           "progress": false,
-          "task": "Evaluate the artifact independently using the rubric below. Do not identify your provider or speculate about other reviewers.\n\nRubric:\n- correctness and internal consistency\n- hidden assumptions and missing evidence\n- concrete risks or counterexamples\n- smallest justified recommendation\n\n<artifact>\n{task}\n</artifact>",
+          "task": "Act as an evidence-bound adversarial examiner. Review the artifact independently and do not identify your provider or speculate about other reviewers.\n\nUse this exact reasoning sequence:\n1. Steelman: state the strongest supportable version of the subject before challenging it.\n2. Weakest dependency: identify the assumption, inference, or evidence dependency most likely to change the conclusion.\n3. Concrete counterexample: construct the strongest plausible failure scenario grounded in the supplied artifact.\n4. Falsification test: name the observation or executable/documentary evidence that would confirm or defeat the challenge.\n5. Surviving judgment: state what remains valid after the attack and the smallest justified recommendation.\n\nA challenge becomes a finding only when the supplied evidence supports it after this sequence. Do not manufacture dissent, reward novelty, or treat missing context as proof of a defect. If no challenge survives, use verdict accept and return an empty findings array. Report missing evidence under uncertainties.\n\n<artifact>\n{task}\n</artifact>",
           "outputSchema": {
             "type": "object",
             "additionalProperties": false,
             "required": [
               "verdict",
               "summary",
+              "steelman",
+              "weakestDependency",
+              "counterexample",
+              "falsificationTest",
+              "survivingJudgment",
               "findings",
               "uncertainties"
             ],
@@ -191,6 +236,21 @@
                 ]
               },
               "summary": {
+                "type": "string"
+              },
+              "steelman": {
+                "type": "string"
+              },
+              "weakestDependency": {
+                "type": "string"
+              },
+              "counterexample": {
+                "type": "string"
+              },
+              "falsificationTest": {
+                "type": "string"
+              },
+              "survivingJudgment": {
                 "type": "string"
               },
               "findings": {
@@ -249,13 +309,18 @@
           "model": "deepseek/deepseek-v4-pro",
           "as": "perspectiveD",
           "progress": false,
-          "task": "Evaluate the artifact independently using the rubric below. Do not identify your provider or speculate about other reviewers.\n\nRubric:\n- correctness and internal consistency\n- hidden assumptions and missing evidence\n- concrete risks or counterexamples\n- smallest justified recommendation\n\n<artifact>\n{task}\n</artifact>",
+          "task": "Act as an evidence-bound adversarial examiner. Review the artifact independently and do not identify your provider or speculate about other reviewers.\n\nUse this exact reasoning sequence:\n1. Steelman: state the strongest supportable version of the subject before challenging it.\n2. Weakest dependency: identify the assumption, inference, or evidence dependency most likely to change the conclusion.\n3. Concrete counterexample: construct the strongest plausible failure scenario grounded in the supplied artifact.\n4. Falsification test: name the observation or executable/documentary evidence that would confirm or defeat the challenge.\n5. Surviving judgment: state what remains valid after the attack and the smallest justified recommendation.\n\nA challenge becomes a finding only when the supplied evidence supports it after this sequence. Do not manufacture dissent, reward novelty, or treat missing context as proof of a defect. If no challenge survives, use verdict accept and return an empty findings array. Report missing evidence under uncertainties.\n\n<artifact>\n{task}\n</artifact>",
           "outputSchema": {
             "type": "object",
             "additionalProperties": false,
             "required": [
               "verdict",
               "summary",
+              "steelman",
+              "weakestDependency",
+              "counterexample",
+              "falsificationTest",
+              "survivingJudgment",
               "findings",
               "uncertainties"
             ],
@@ -270,6 +335,21 @@
                 ]
               },
               "summary": {
+                "type": "string"
+              },
+              "steelman": {
+                "type": "string"
+              },
+              "weakestDependency": {
+                "type": "string"
+              },
+              "counterexample": {
+                "type": "string"
+              },
+              "falsificationTest": {
+                "type": "string"
+              },
+              "survivingJudgment": {
                 "type": "string"
               },
               "findings": {
@@ -332,12 +412,13 @@
       "model": "openai-codex/gpt-5.6-sol",
       "phase": "Synthesis",
       "label": "Blind evidence synthesis",
-      "task": "Synthesize the four anonymous perspectives against the original artifact. Do not infer which provider produced a perspective. Agreement is not proof; preserve unresolved disagreement and identify evidence needed to resolve it.\n\n<artifact>\n{task}\n</artifact>\n\n<perspective-a>\n{outputs.perspectiveA}\n</perspective-a>\n\n<perspective-b>\n{outputs.perspectiveB}\n</perspective-b>\n\n<perspective-c>\n{outputs.perspectiveC}\n</perspective-c>\n\n<perspective-d>\n{outputs.perspectiveD}\n</perspective-d>",
+      "task": "Synthesize the four anonymous adversarial examinations against the original artifact. Do not infer which provider produced a perspective.\n\nFirst reconstruct the strongest supportable steelman. Promote a challenge to priorityFindings only when it survives the critic's attack and is supported by the supplied artifact or a concrete falsification path. Put unsupported, performative, duplicate, or missing-context attacks in discardedClaims with the reason. Agreement is not proof, majority vote is not evidence, and adversarial novelty is not value. Preserve unresolved disagreement and identify evidence needed to resolve it. If no challenge survives, verdict accept with an empty priorityFindings array is valid.\n\n<artifact>\n{task}\n</artifact>\n\n<perspective-a>\n{outputs.perspectiveA}\n</perspective-a>\n\n<perspective-b>\n{outputs.perspectiveB}\n</perspective-b>\n\n<perspective-c>\n{outputs.perspectiveC}\n</perspective-c>\n\n<perspective-d>\n{outputs.perspectiveD}\n</perspective-d>",
       "outputSchema": {
         "type": "object",
         "additionalProperties": false,
         "required": [
           "verdict",
+          "steelman",
           "consensus",
           "disagreements",
           "priorityFindings",
@@ -354,6 +435,9 @@
               "reject",
               "inconclusive"
             ]
+          },
+          "steelman": {
+            "type": "string"
           },
           "consensus": {
             "type": "array",

@@ -5,6 +5,12 @@ import { spawn } from "node:child_process";
 import { appendFile, mkdir, readFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import {
+  discoverLiteralMakeTargets,
+  inspectLiteralMakeTargets,
+} from "../src/makefile-policy.js";
+
+export { discoverLiteralMakeTargets, inspectLiteralMakeTargets };
 
 const GATES = Object.freeze([
   { name: "check", target: "check", command: "make check" },
@@ -140,44 +146,6 @@ function cleanOutput(value: string): string {
   const withoutAnsi = value.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "").trim();
   if (withoutAnsi.length <= MAX_FAILURE_CHARS) return withoutAnsi;
   return `[truncated to final ${MAX_FAILURE_CHARS.toLocaleString()} characters]\n${withoutAnsi.slice(-MAX_FAILURE_CHARS)}`;
-}
-
-type MakefileInspection = { targets: Set<string>; unsupportedReason?: string };
-
-export function inspectLiteralMakeTargets(content: string): MakefileInspection {
-  const targets = new Set<string>();
-  const lines = content.replaceAll("\r\n", "\n").split("\n");
-  for (const [index, line] of lines.entries()) {
-    if (!line) continue;
-    const trimmed = line.trim();
-    if (!trimmed || line.startsWith("\t")) continue;
-    if (line.trimEnd().endsWith("\\")) {
-      return { targets: new Set(), unsupportedReason: `line ${index + 1} uses continuation syntax` };
-    }
-    if (trimmed.startsWith("#")) continue;
-    if (/^\s/.test(line)) {
-      return { targets: new Set(), unsupportedReason: `line ${index + 1} uses leading whitespace` };
-    }
-    if (/^(?:override\s+)?(?:ifeq|ifneq|ifdef|ifndef|else|endif|define|endef)\b/.test(trimmed)) {
-      return { targets: new Set(), unsupportedReason: `line ${index + 1} uses conditional or define syntax` };
-    }
-    const colon = line.indexOf(":");
-    if (colon <= 0 || line[colon + 1] === "=") continue;
-    const left = line.slice(0, colon).trim();
-    if (
-      !left
-      || left.includes("%")
-      || left.includes("$")
-      || left.includes("=")
-      || left.includes("\\")
-    ) continue;
-    for (const target of left.split(/\s+/)) targets.add(target);
-  }
-  return { targets };
-}
-
-export function discoverLiteralMakeTargets(content: string): Set<string> {
-  return inspectLiteralMakeTargets(content).targets;
 }
 
 export function parseScoreTarget(args: string): ScoreTarget {
@@ -364,14 +332,19 @@ export async function runScore(
   } else {
     const inspection = inspectLiteralMakeTargets(makefile);
     const discovered = inspection.targets;
+    const duplicateRequired = GATES.filter((gate) => inspection.duplicateTargets.has(gate.target));
     const missing = GATES.filter((gate) => !discovered.has(gate.target));
-    if (inspection.unsupportedReason || missing.length > 0) {
+    const unsupportedReason = inspection.unsupportedReason
+      ?? (duplicateRequired.length > 0
+        ? `literal Make target '${duplicateRequired[0]!.target}' has multiple definitions`
+        : undefined);
+    if (unsupportedReason || missing.length > 0) {
       gates = GATES.map((gate) => ({
         name: gate.name,
         command: gate.command,
         status: discovered.has(gate.target) ? "not-run" as const : "missing" as const,
-        evidence: inspection.unsupportedReason
-          ? `Root Makefile is not statically scoreable: ${inspection.unsupportedReason}.`
+        evidence: unsupportedReason
+          ? `Root Makefile is not statically scoreable: ${unsupportedReason}.`
           : discovered.has(gate.target)
             ? "Gate was not run because the required Make target pair is incomplete."
             : `Literal Make target '${gate.target}' is missing from the root Makefile.`,

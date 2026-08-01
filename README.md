@@ -8,8 +8,10 @@ Pi Forge is a Pi-native sibling of Claude Forge. It targets functional parity, n
 
 Implemented vertical slices:
 
-- `/second-opinion`, parent-prepared review briefs plus four isolated critics and evidence-based synthesis;
-- `/expert-panel`, immediate fan-out for an already self-contained artifact;
+- `/socratic-analysis`, parent-owned claim examination backed by a protected artifact-only analyst;
+- `/auto-panel`, default-off one-shot session consent for automatic sanitized Socratic escalation;
+- `/second-opinion`, parent-prepared briefs plus four isolated evidence-bound adversarial examiners and synthesis;
+- `/expert-panel`, immediate guarded preflight and consent before adversarial fan-out for an already self-contained artifact;
 - `source-control`, with `/commit` as a thin Pi prompt alias;
 - `refine-requirements`, conversational scope and decision refinement;
 - `pi-forge.software-engineer`, a scoped implementation writer using a private contract;
@@ -19,19 +21,25 @@ Implemented vertical slices:
 - `/plan-forge`, evidence-backed ExecPlans and fresh-session handoffs;
 - `/pr-review`, read-only commit-aware PR review with candidate-execution consent;
 - lifecycle guards for Git mutations, sensitive paths, and post-edit verification;
-- local sanitized session telemetry plus an offline active-branch extractor;
-- `/score`, deterministic commit, PR, and excellence readiness from repository gates.
+- local sanitized schema-v2 session telemetry, active-branch extraction, and explicit-input cohort aggregation;
+- `/score`, deterministic commit, PR, and excellence readiness from repository gates;
+- `/project-checks`, read-only metadata inspection and truthful Make-gate onboarding for `/score`.
+
+The Socratic workflow keeps conversation state in the parent, asks one material question at a time, and sends only a self-contained artifact to `pi-forge.socratic-analyst`. The protected child separates facts, inferences, assumptions, alternatives, falsifiers, and a reconstructed conclusion. By default, a recommendation still requires a separate explicit yes before preparing any multi-provider payload.
+
+`/auto-panel enable` can replace that per-run approval with one bounded standing grant. After interactive disclosure, one later complete Socratic recommendation mints a one-attempt receipt and may launch one payload classified as sanitized without an editor or per-run confirmation. The receipt is consumed by the first automatic tool attempt; the grant is memory-only, resets on a new session or `/reload`, is consumed before launcher work, and cannot retry or recurse. A local deny scanner blocks obvious secret, email, and private-path shapes, but neither the scanner nor the model's classification proves that data is safe.
 
 The second-opinion workflow:
 
-1. use the current parent model to resolve the decision and subject under review;
+1. use the current parent model to resolve the decision and strongest supportable subject under review;
 2. gather only relevant evidence and separate verified facts from assumptions and gaps;
-3. prepare a self-contained, redacted brief and focused review questions;
+3. prepare a self-contained, redacted brief with counterexample and falsification questions;
 4. confirm disclosure of that brief to four providers;
 5. launch four independent panelists with fresh context and no filesystem, shell, or network tools;
-6. synthesize the letter-labelled reports while minimizing model-identity bias.
+6. require each panelist to steelman, identify the weakest dependency, construct a concrete counterexample, define a falsification test, and state what survives;
+7. synthesize only evidence-supported surviving challenges while minimizing model-identity bias.
 
-`/expert-panel` skips brief preparation and immediately applies steps 4 through 6 to an already self-contained artifact.
+Adversarial review does not require dissent. `accept` with no findings is valid when no challenge survives. `/expert-panel` skips brief preparation and immediately enters the guarded preflight for an already self-contained artifact; it still shows the digest-bound provider confirmation before any launch.
 
 The fixed critic models are:
 
@@ -73,7 +81,21 @@ Run `/reload` after editing package resources.
 
 ## Usage
 
-Prepare context in the parent model, then obtain independent opinions:
+Examine a claim or decision Socratically before choosing whether independent review is warranted:
+
+```text
+/socratic-analysis Should this API design replace the current contract?
+```
+
+Optionally grant one automatic sanitized escalation for the current session, inspect it, or revoke it before use:
+
+```text
+/auto-panel enable
+/auto-panel status
+/auto-panel disable
+```
+
+Prepare context in the parent model, then obtain independent adversarial opinions:
 
 ```text
 /second-opinion Evaluate whether this API design preserves backward compatibility.
@@ -100,13 +122,16 @@ Create a plan, execute an approved plan, or review a pull request:
 /pr-review 456 --no-exec
 ```
 
-Run deterministic local quality gates for a target threshold:
+Inspect a project and prepare truthful root Make gates, then run deterministic local quality gates:
 
 ```text
+/project-checks
 /score
 /score pr
 /score excellence
 ```
+
+`/project-checks` reads fixed, bounded root metadata without executing project commands or writing files. It labels observed, conventional, and unresolved candidates and shows a diff before an existing Makefile is edited. If no real project-owned E2E or user-flow command exists, it leaves `test-e2e` unresolved and `/score` remains intentionally inconclusive.
 
 Load engineering skills explicitly when needed:
 
@@ -114,8 +139,10 @@ Load engineering skills explicitly when needed:
 /skill:source-control
 /skill:refine-requirements
 /skill:second-opinion
+/skill:socratic-analysis
 /skill:orchestrator
 /skill:plan-forge
+/skill:project-checks
 /skill:pr-review
 /skill:session-telemetry
 ```
@@ -124,11 +151,17 @@ Load engineering skills explicitly when needed:
 
 `/orchestrator` coordinates one scoped writer, fresh artifact-only reviewers, final verification, bounded fix rounds, and presentation. `/plan-forge` writes a self-contained draft plan but does not implement or commit it. `/pr-review` pins immutable base and head OIDs in a mode-0700 throwaway clone and never posts, approves, or merges. Builds, tests, package scripts, Make targets, and other candidate-controlled code are skipped unless `PI_FORGE_ALLOW_CANDIDATE_CODE=1` is explicitly present or execution occurs in appropriately restricted ephemeral CI. Local candidate commands run with a stripped environment plus temporary HOME and XDG directories, without inherited credentials or agent sockets. That opt-in still grants execution with current-user filesystem and network permissions; it is not a sandbox.
 
-`/forge-telemetry` shows aggregate session counters from custom entries that never enter model context. The `session-telemetry` skill can extract a sanitized active-branch JSONL trace or summary from `$PI_SESSION_FILE`. It excludes prompt and response text, thinking, source, paths, commands, output, findings, secrets, session paths, and provider/model identifiers. Nothing is transmitted automatically.
+`/forge-telemetry` shows schema-v2 aggregate session counters from custom entries that never enter model context. The public `session-telemetry` skill can extract a sanitized active-branch JSONL trace or summary from historical raw Pi v2/v3 session files. One result classifier aligns successful direct edits, genuinely launched protected writers, errors, and successful recognized verification across counters and ordered events. It excludes prompt and response text, thinking, source, paths, commands, output, findings, secrets, session paths, and provider/model identifiers. Nothing is transmitted automatically.
+
+The bundled cohort aggregator accepts only 5 to 100 repeated explicit regular non-symlink session files, with a 1 GiB cumulative limit and internal filesystem/header duplicate rejection. It emits aggregate totals, medians, session counts and rates, and fixed warnings only, with no rows, extrema, timestamps, identifiers, hashes, or input paths. Its output reuses no-follow, no-implicit-overwrite, mode-0600, single-link, and input-identity protections. The trusted source checkout adds project-only `skill:pi-forge-harness-audit`, which requires exact-artifact disclosure consent, an operator comparability assertion, and one falsifiable change contract. It does not read raw sessions by default, edit source, refresh the Behavior Map, claim causality, invoke another provider, or promote changes automatically.
 
 The lifecycle extension blocks direct Bash-tool commits, requires interactive confirmation for push, destructive Git and sensitive-path operations, and schedules one bounded verification follow-up after observed source changes without a later successful recognized check. It is a workflow guard, not a shell parser or OS sandbox; obfuscated commands, aliases, custom processes, and internal filesystem operations remain outside complete observation. See `docs/lifecycle.md` and `docs/telemetry.md`.
 
-The expert-panel launcher validates the generated chain digest, verifies the exact pi-subagents runtime version, preflights the effective agent definitions, and pings pi-subagents before any panel model is called. The skill path opens the exact rendered payload for inspection and redaction, then binds provider consent to its size and SHA-256 digest. Shadowed agents, fallback models, context inheritance, added tools, skills, or ambient extensions are rejected. The preflight repeats immediately before spawn. The launcher also discloses that OpenAI receives the accepted payload a second time together with all four reports for synthesis.
+The Socratic analyst is a protected artifact-only agent with fresh context, no inherited project context or skills, and no filesystem, shell, network, extension, MCP, persistence, sharing, or subagent capability. It cannot invoke slash commands or authorize provider disclosure. See `docs/socratic-analysis.md`.
+
+The expert-panel launcher validates the generated adversarial chain digest, verifies the exact pi-subagents runtime version, preflights the effective agent definitions, and pings pi-subagents before any panel model is called. Manual skill use opens the exact rendered payload for inspection and redaction, then binds provider consent to its size and SHA-256 digest. Shadowed agents, fallback models, context inheritance, added tools, skills, or ambient extensions are rejected. The preflight repeats immediately before spawn. The launcher also discloses that OpenAI receives the accepted payload a second time together with all four reports for synthesis.
+
+Automatic launch is a deliberate weaker consent mode, not a shortcut hidden inside the manual tool. It is disabled by default, requires a separate interactive one-shot grant before the Socratic analysis, requires a complete protected-agent recommendation and `classification: sanitized`, and consumes the grant before preflight. It retains chain/runtime checks and both isolation preflights but intentionally skips exact-payload editing and confirmation. Calls already emitted cannot be reliably revoked.
 
 The workflow does not share the parent conversation, project instructions, discovered skills, ambient extensions, or filesystem, shell, and network tools with its children. Pi-subagents still enables its internal `structured_output` tool to enforce result schemas.
 
@@ -160,6 +193,30 @@ npm run check:behavior-map:freshness
 
 The structural check is also part of `npm run check`. A stale fingerprint freezes the affected card for trusted routing but does not prove that its prose is wrong. After reviewing the changed source and relevant cards, refresh the fixed snapshot explicitly with `npm run refresh:behavior-map`; this never runs automatically.
 
+### Maintainer harness audit
+
+After producing an exact cohort artifact and deciding it may enter the current provider context, load the project-only audit workflow:
+
+```text
+/skill:pi-forge-harness-audit
+```
+
+The skill validates the aggregate contract, asks for an explicit comparability assertion, and returns at most one draft change contract. It does not read raw sessions, edit the harness, invoke another provider, or authorize implementation.
+
+### Maintainer release workflow
+
+The trusted source checkout also exposes `skill:pi-forge-release` and a project-local ordinary-command guard. Both remain outside the npm package. The non-publishing helper validates one stable release phase without creating tags, pushing, publishing, changing dist-tags, deprecating, or unpublishing:
+
+```bash
+node scripts/check-release.mjs --phase prepare --version 0.3.0
+node scripts/check-release.mjs --phase tag --version 0.3.0
+node scripts/check-release.mjs --phase publish --version 0.3.0
+node scripts/check-release.mjs --phase verify --version 0.3.0
+node scripts/check-release.mjs --phase reconcile --version 0.3.0
+```
+
+`pass`, `fail`, and `indeterminate` are distinct. Missing CLI, authentication, network, exact-HEAD CI, or parse evidence never becomes a pass. Project verification and local pack commands run only after static release prerequisites pass, under a temporary HOME without inherited release/provider credentials; all release invariants are queried again afterward. Local tag creation, tag push, and npm publication require separate explicit authorizations. After an uncertain network result, reconcile authoritative Git and npm state before any retry. The project guard blocks force-tag creation and confirms ordinary Pi Bash-tool tag creation and `npm publish`, but it does not cover aliases, custom tools, user shell commands, external terminals, or obfuscation and does not prove preflight passed.
+
 Test the newest pi-subagents release without changing the working tree:
 
 ```bash
@@ -182,7 +239,7 @@ The upgrade gate creates a temporary repository copy, synchronizes the candidate
 
 `.github/workflows/ci.yml` validates every pull request and push to `main`, including discovery from the packed npm artifact. `.github/workflows/pi-subagents-upgrade.yml` additionally runs the dependency gate for relevant changes, every Monday, and manual version or npm-tag requests. Scheduled runs test `latest`; they upload the complete compatibility log without changing the repository.
 
-`/score` requires a trusted project and literal, top-level `check` and `test-e2e` targets in the root Makefile. Conditional, generated, escaped, or continued target definitions are inconclusive rather than interpreted. It runs `make check` followed by `make test-e2e` with fail-fast, shell-free execution, strips inherited Make control variables, preserves process signals, and never invokes a model. A definite gate failure scores 0; missing gates, process errors, signals, and timeouts are inconclusive rather than fabricated scores. Passing gates establish a static 100 baseline, explicitly without review deductions. Numeric runs are recorded under local Git metadata and do not dirty the worktree. Failure excerpts are shown through the current UI but excluded from persisted Pi score entries and model context. Repository gates execute project code with the current user's permissions; this is not a sandbox.
+`/score` requires a trusted project and literal, top-level, uniquely defined `check` and `test-e2e` targets in the root Makefile. Conditional, generated, escaped, or continued target definitions are inconclusive rather than interpreted. It runs `make check` followed by `make test-e2e` with fail-fast, shell-free execution, strips inherited Make control variables, preserves process signals, and never invokes a model. A definite gate failure scores 0; missing gates, process errors, signals, and timeouts are inconclusive rather than fabricated scores. Passing gates establish a static 100 baseline, explicitly without review deductions. Numeric runs are recorded under local Git metadata and do not dirty the worktree. Failure excerpts are shown through the current UI but excluded from persisted Pi score entries and model context. Repository gates execute project code with the current user's permissions; this is not a sandbox.
 
 The review fleet is available as:
 

@@ -22,19 +22,19 @@ Unsafe launches return a blocking reason before spawn. Accepted launch calls rem
 
 ## Exceptional paths
 
-Runtime configuration read failure, forced top-level async, missing model, modified package source, fallback candidates, inherited skills, added tools or extensions, custom destinations, output persistence, delayed execution, and unsafe resume block. A true protected resume remains unavailable until the upstream atomic contract exists.
+Runtime configuration read failure, forced top-level async, missing model, modified package source, fallback candidates, inherited skills, added tools or extensions, custom destinations, output persistence, the unqualified Socratic alias, delayed execution, and unsafe resume block. A true protected resume remains unavailable until the upstream atomic contract exists.
 
 ## Source of truth
 
-Identity definitions live at `reviewer-agent-names`, `tech-writer-agent-name`, `artifact-agent-names`, and `writer-agent-name`. Effective enforcement lives at `protected-launch-collector`, `protected-launch-validator`, `protected-resume-validator`, and `agent-policy-extension`. `lifecycle-writer-agent` and `telemetry-writer-input` are coupled literal consumers that require review when the writer identity changes.
+Identity definitions live at `reviewer-agent-names`, `tech-writer-agent-name`, `socratic-analyst-agent-name`, `artifact-agent-names`, and `writer-agent-name`. `socratic-analyst-agent` is an authored artifact-only definition, while `socratic-analysis-skill` owns its safe parent launch contract. Effective enforcement lives at `protected-launch-collector`, `protected-launch-validator`, `protected-resume-validator`, and `agent-policy-extension`. `lifecycle-writer-agent` and `telemetry-writer-input` are coupled literal consumers that require review when the writer identity changes.
 
 ## Generated artifacts
 
-Reviewer agents are generated from canonical reviewer definitions and the private review contract. The technical writer is generated from its canonical definition and private writing contract. Existing generator checks remain authoritative. The implementation writer and its private contract are canonical authored inputs.
+Reviewer agents are generated from canonical reviewer definitions and the private review contract. The technical writer is generated from its canonical definition and private writing contract. Existing generator checks remain authoritative. The Socratic analyst, implementation writer, and implementation private contract are canonical authored inputs.
 
 ## Tests
 
-Agent-policy tests cover input shapes, overrides, package baselines, runtime configuration, attestations, reload, async source identity, and resume. Engineering, reviewer, technical-writer, lifecycle, orchestration, and runtime probes cover coupled contracts and package discovery.
+Agent-policy tests cover input shapes, Socratic identity and override rejection, package baselines, runtime configuration, attestations, reload, async source identity, and resume. Socratic, engineering, reviewer, technical-writer, lifecycle, orchestration, and runtime probes cover coupled contracts and package discovery.
 
 ## Registers
 
@@ -46,6 +46,9 @@ Agent-policy tests cover input shapes, overrides, package baselines, runtime con
 
 - `reviewer-agent-names`
 - `tech-writer-agent-name`
+- `socratic-analyst-agent-name`
+- `socratic-analyst-agent`
+- `socratic-analysis-skill`
 - `artifact-agent-names`
 - `writer-agent-name`
 - `protected-launch-collector`

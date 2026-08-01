@@ -26,6 +26,11 @@ test("policy finds protected agents in single, parallel, and chain launches", ()
       .map((launch) => launch.agent),
     ["pi-forge.tech-writer"],
   );
+  assert.deepEqual(
+    collectProtectedLaunches({ agent: "pi-forge.socratic-analyst", task: "analyze" }, CWD)
+      .map((launch) => launch.agent),
+    ["pi-forge.socratic-analyst"],
+  );
 
   const parallel = collectProtectedLaunches({
     cwd: "/tmp/untrusted-discovery-root",
@@ -86,7 +91,7 @@ test("policy rejects protected invocation overrides before preflight", async () 
   let resolverCalls = 0;
   const resolver = async () => { resolverCalls += 1; return {}; };
   const base = {
-    agent: "pi-forge.security-reviewer",
+    agent: "pi-forge.socratic-analyst",
     model: "trusted/model",
     artifacts: false,
     acceptance: false,
@@ -144,6 +149,31 @@ test("policy rejects protected invocation overrides before preflight", async () 
       }, CWD, resolver) ?? "",
       /requires explicit async: false/,
     );
+  }
+  assert.equal(resolverCalls, 0);
+});
+
+test("registered policy rejects the unqualified Socratic alias before discovery", async () => {
+  let handler: ((event: any, ctx: any) => Promise<any>) | undefined;
+  let resolverCalls = 0;
+  agentPolicyExtension({
+    on(name: string, candidate: typeof handler) {
+      if (name === "tool_call") handler = candidate;
+    },
+  } as any, {
+    resolveLaunchContract: async () => { resolverCalls += 1; return {}; },
+  });
+  assert.ok(handler);
+
+  for (const input of [
+    { agent: "socratic-analyst", task: "analyze" },
+    { tasks: [{ agent: "socratic-analyst", task: "analyze" }] },
+    { chain: [{ parallel: [{ agent: "socratic-analyst", task: "analyze" }] }] },
+  ]) {
+    const result = await handler!({ toolName: "subagent", input }, { cwd: CWD });
+    assert.equal(result?.block, true);
+    assert.match(result?.reason ?? "", /unsafe unqualified protected-agent alias/);
+    assert.match(result?.reason ?? "", /pi-forge\.socratic-analyst/);
   }
   assert.equal(resolverCalls, 0);
 });

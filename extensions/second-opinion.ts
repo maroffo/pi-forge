@@ -7,6 +7,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
+import { SOCRATIC_ANALYST_AGENT_NAME } from "../src/agent-policy-config.js";
 import {
   CRITIC_AGENT,
   OPINION_MODELS,
@@ -75,6 +76,17 @@ type PreparedBrief = {
   reviewQuestions: string[];
 };
 
+type AutomaticPreparedBrief = PreparedBrief & {
+  classification: "sanitized";
+};
+
+type AutomaticPanelState = "disabled" | "enabled" | "consumed";
+type SocraticRecommendationReceipt = {
+  toolCallId: string;
+  digest: string;
+};
+type DisclosureMode = "interactive" | "standing-consent";
+
 type LaunchOutcome =
   | { status: "launched"; runId?: string }
   | { status: "cancelled" }
@@ -86,7 +98,7 @@ const QUESTION_COLLATOR = new Intl.Collator("und", {
   ignorePunctuation: true,
 });
 
-const PREPARED_BRIEF_SCHEMA = Type.Object({
+const PREPARED_BRIEF_FIELDS = {
   objective: Type.String({ minLength: 20, maxLength: 2_000 }),
   subject: Type.String({ minLength: 40, maxLength: 120_000 }),
   context: Type.String({ minLength: 40, maxLength: 35_000 }),
@@ -96,7 +108,41 @@ const PREPARED_BRIEF_SCHEMA = Type.Object({
     minItems: 2,
     maxItems: 6,
   }),
+};
+
+const PREPARED_BRIEF_SCHEMA = Type.Object(PREPARED_BRIEF_FIELDS, { additionalProperties: false });
+const AUTOMATIC_PREPARED_BRIEF_SCHEMA = Type.Object({
+  ...PREPARED_BRIEF_FIELDS,
+  classification: Type.Literal("sanitized"),
 }, { additionalProperties: false });
+
+const AUTOMATIC_PANEL_DENY_PATTERNS = Object.freeze([
+  { label: "private-key material", pattern: /-----BEGIN(?: [A-Z0-9]+)* PRIVATE KEY-----/iu },
+  {
+    label: "credential-like assignment",
+    pattern: /\b(?:api[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret|password|private[_-]?key|secret|token)\b\s*[:=]\s*["']?[^\s"']{8,}/iu,
+  },
+  { label: "provider-token shape", pattern: /\b(?:AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{20,}|sk-[A-Za-z0-9_-]{20,})\b/u },
+  { label: "personal-email shape", pattern: /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/iu },
+  { label: "private absolute path", pattern: /(?:\/Users\/[^\s/]+|\/home\/[^\s/]+|[A-Za-z]:\\Users\\[^\s\\]+)/u },
+]);
+
+export function automaticPanelPayloadRejection(target: string): string | undefined {
+  for (const candidate of AUTOMATIC_PANEL_DENY_PATTERNS) {
+    if (candidate.pattern.test(target)) {
+      return `Automatic panel rejected a ${candidate.label}. The one-shot grant remains unused; use the manual reviewed path for this artifact.`;
+    }
+  }
+  return undefined;
+}
+
+export function parseAutoPanelCommand(args: string): "status" | "enable" | "disable" {
+  const normalized = args.trim().toLowerCase();
+  if (!normalized || normalized === "status") return "status";
+  if (normalized === "enable") return "enable";
+  if (normalized === "disable") return "disable";
+  throw new Error("Usage: /auto-panel [status|enable|disable]");
+}
 
 async function resolveWithBundledPreflight(input: Record<string, unknown>) {
   const imported = await import("pi-subagents/preflight");
@@ -129,6 +175,38 @@ function textFromContent(content: unknown): string {
     .map((block) => block.text)
     .join("\n")
     .trim();
+}
+
+function isDirectProtectedSocraticCall(input: unknown): boolean {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return false;
+  const value = input as Record<string, unknown>;
+  const contract = value.agentContract as Record<string, unknown> | undefined;
+  const allowedKeys = new Set([
+    "acceptance",
+    "agent",
+    "agentContract",
+    "artifacts",
+    "context",
+    "model",
+    "task",
+  ]);
+  return Object.keys(value).every((key) => allowedKeys.has(key))
+    && value.action === undefined
+    && value.agent === SOCRATIC_ANALYST_AGENT_NAME
+    && typeof value.task === "string"
+    && value.task.length > 0
+    && typeof value.model === "string"
+    && value.context === "fresh"
+    && value.artifacts === false
+    && value.acceptance === false
+    && contract?.version === 1
+    && Object.keys(contract).length === 1;
+}
+
+export function isCompleteSocraticRecommendation(content: unknown): boolean {
+  const text = textFromContent(content);
+  return /(?:^|\n)#{0,6}\s*Status(?:\s*:\s*|\s*\n+\s*)complete\b/iu.test(text)
+    && /(?:^|\n)#{0,6}\s*Second Opinion(?:\s*:\s*|\s*\n+\s*)recommend\b/iu.test(text);
 }
 
 export function extractLatestAssistantText(entries: readonly unknown[]): string {
@@ -465,6 +543,7 @@ async function launchExpertPanel(
   target: string,
   ctx: ExtensionContext,
   signal?: AbortSignal,
+  disclosureMode: DisclosureMode = "interactive",
 ): Promise<LaunchOutcome> {
   try {
     throwIfCancelled(signal);
@@ -482,7 +561,13 @@ async function launchExpertPanel(
       signal,
     );
     throwIfCancelled(signal);
-    if (!(await confirmDisclosure(target, models, ctx, signal))) return { status: "cancelled" };
+    if (
+      disclosureMode === "interactive"
+      && !(await confirmDisclosure(target, models, ctx, signal))
+    ) return { status: "cancelled" };
+    if (disclosureMode === "standing-consent" && !ctx.hasUI) {
+      throw new Error("Automatic panel launch requires the interactive session that granted standing consent.");
+    }
     throwIfCancelled(signal);
 
     await preflightSecondOpinion(definition, ctx, dependencies.resolveLaunchContract);
@@ -527,6 +612,35 @@ export default function secondOpinionExtension(
   pi: ExtensionAPI,
   dependencies: ExtensionDependencies = DEFAULT_DEPENDENCIES,
 ): void {
+  let automaticPanelState: AutomaticPanelState = "disabled";
+  let socraticRecommendationReceipt: SocraticRecommendationReceipt | undefined;
+  pi.on("session_start", () => {
+    automaticPanelState = "disabled";
+    socraticRecommendationReceipt = undefined;
+  });
+  pi.on("input", () => {
+    socraticRecommendationReceipt = undefined;
+  });
+  pi.on("tool_result", (event: any) => {
+    if (
+      automaticPanelState !== "enabled"
+      || event.toolName !== "subagent"
+      || typeof event.toolCallId !== "string"
+      || !isDirectProtectedSocraticCall(event.input)
+    ) return;
+    socraticRecommendationReceipt = undefined;
+    if (event.isError === true || !isCompleteSocraticRecommendation(event.content)) return;
+    const resultText = textFromContent(event.content);
+    socraticRecommendationReceipt = {
+      toolCallId: event.toolCallId,
+      digest: createHash("sha256")
+        .update(String(event.input.task))
+        .update("\0")
+        .update(resultText)
+        .digest("hex"),
+    };
+  });
+
   pi.registerTool({
     name: "convene_expert_panel",
     label: "Convene Expert Panel",
@@ -548,6 +662,136 @@ export default function secondOpinionExtension(
         },
         terminate: true,
       };
+    },
+  });
+
+  pi.registerTool({
+    name: "convene_opt_in_expert_panel",
+    label: "Convene Opt-In Expert Panel",
+    description: "Consume one explicit session-scoped standing-consent grant to launch one sanitized Expert Panel payload without a per-run editor or confirmation. Disabled by default; use /auto-panel enable interactively.",
+    parameters: AUTOMATIC_PREPARED_BRIEF_SCHEMA,
+    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+      if (automaticPanelState !== "enabled") {
+        return {
+          content: [{
+            type: "text",
+            text: `Automatic Expert Panel is ${automaticPanelState}. No provider call was attempted. Use /auto-panel enable, or follow the manual reviewed Second Opinion path.`,
+          }],
+          details: { status: automaticPanelState },
+        };
+      }
+      if (!socraticRecommendationReceipt) {
+        return {
+          content: [{
+            type: "text",
+            text: "Automatic Expert Panel has no current one-shot receipt from a complete protected Socratic recommendation. No provider call was attempted; run Socratic Analysis after enabling the grant, or use the manual reviewed path.",
+          }],
+          details: { status: "rejected", reason: "missing-socratic-recommendation" },
+        };
+      }
+      const recommendationReceipt = socraticRecommendationReceipt;
+      socraticRecommendationReceipt = undefined;
+      if (!ctx.hasUI) {
+        return {
+          content: [{
+            type: "text",
+            text: "Automatic Expert Panel requires the interactive session that granted standing consent. The recommendation receipt was consumed, but no provider call was attempted.",
+          }],
+          details: { status: "rejected", reason: "headless", recommendationReceipt: "consumed" },
+        };
+      }
+
+      const prepared = params as AutomaticPreparedBrief;
+      const target = buildSecondOpinionBrief(prepared);
+      const rejection = automaticPanelPayloadRejection(target);
+      if (rejection) {
+        return {
+          content: [{ type: "text", text: `${rejection} A new protected Socratic recommendation is required before another automatic attempt.` }],
+          details: {
+            status: "rejected",
+            reason: "payload-policy",
+            recommendationReceipt: "consumed",
+          },
+        };
+      }
+
+      automaticPanelState = "consumed";
+      const digest = createHash("sha256").update(target).digest("hex");
+      const automaticBinding = createHash("sha256")
+        .update(recommendationReceipt.digest)
+        .update("\0")
+        .update(digest)
+        .digest("hex");
+      ctx.ui.notify(
+        `Automatic Expert Panel one-shot grant consumed. Launch binding ${automaticBinding.slice(0, 12)} joins protected recommendation ${recommendationReceipt.digest.slice(0, 12)} to ${target.length.toLocaleString()} sanitized characters (SHA-256 ${digest}) without per-run confirmation.`,
+        "warning",
+      );
+      const outcome = await launchExpertPanel(
+        pi,
+        dependencies,
+        target,
+        ctx,
+        signal,
+        "standing-consent",
+      );
+      return {
+        content: [{ type: "text", text: launchOutcomeText(outcome) }],
+        details: {
+          status: outcome.status,
+          runId: outcome.status === "launched" ? outcome.runId : undefined,
+          targetChars: target.length,
+          automaticBinding,
+          automaticGrant: "consumed",
+          recommendationReceipt: recommendationReceipt.digest,
+        },
+        terminate: true,
+      };
+    },
+  });
+
+  pi.registerCommand("auto-panel", {
+    description: "Manage one-shot session standing consent for automatic sanitized Expert Panel launch",
+    handler: async (args, ctx) => {
+      try {
+        const action = parseAutoPanelCommand(args);
+        if (action === "status") {
+          const detail = automaticPanelState === "enabled"
+            ? socraticRecommendationReceipt ? "automatic launch pending in the current turn; disable to revoke before spawn" : "awaiting direct Socratic recommendation"
+            : automaticPanelState === "consumed" ? "grant spent; enable again explicitly" : "no standing grant";
+          ctx.ui.notify(`Automatic Expert Panel is ${automaticPanelState} (${detail}).`, "info");
+          return;
+        }
+        if (action === "disable") {
+          automaticPanelState = "disabled";
+          socraticRecommendationReceipt = undefined;
+          ctx.ui.notify("Automatic Expert Panel disabled for this session.", "info");
+          return;
+        }
+        if (!ctx.hasUI) {
+          throw new Error("Automatic Expert Panel standing consent requires an interactive session.");
+        }
+        if (automaticPanelState === "enabled") {
+          ctx.ui.notify("Automatic Expert Panel already has one unused session grant.", "info");
+          return;
+        }
+
+        const providerList = OPINION_MODELS.map((provider) => `  - ${provider}`).join("\n");
+        const confirmed = await ctx.ui.confirm(
+          "Enable one automatic Expert Panel",
+          `This grants one automatic provider launch for a future payload labelled sanitized in the current session.\n\nIndependent panelists:\n${providerList}\n\nSynthesis: ${SYNTHESIZER_MODEL} receives the payload plus all four reports, for five model calls total.\n\nThe automatic path has no per-run editor or confirmation. Its local scanner catches only obvious credential, email, and private-path patterns; passing does not prove sanitization. The grant is consumed before any launch attempt, including failure or unknown acknowledgement, and cannot stop calls after spawn. It resets on a new session or /reload.`,
+        );
+        if (!confirmed) {
+          automaticPanelState = "disabled";
+          socraticRecommendationReceipt = undefined;
+          ctx.ui.notify("Automatic Expert Panel remains disabled.", "info");
+          return;
+        }
+        automaticPanelState = "enabled";
+        socraticRecommendationReceipt = undefined;
+        ctx.ui.notify("Automatic Expert Panel enabled for one sanitized launch in this session; run Socratic Analysis to create the required recommendation.", "warning");
+      } catch (error) {
+        ctx.ui.notify(error instanceof Error ? error.message : String(error), "error");
+      }
     },
   });
 

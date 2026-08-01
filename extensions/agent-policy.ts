@@ -9,6 +9,8 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import {
   ARTIFACT_AGENT_NAMES,
   IMPLEMENTATION_CONTRACT_NAME,
+  SOCRATIC_ANALYST_AGENT_NAME,
+  SOCRATIC_ANALYST_LOCAL_NAME,
   WRITER_AGENT_NAME,
 } from "../src/agent-policy-config.js";
 import { PI_SUBAGENTS_VERSION } from "../src/second-opinion-config.js";
@@ -592,6 +594,14 @@ export default function agentPolicyExtension(
         });
       }
       return;
+    }
+
+    const launchAgentNames = collectLaunchAgentNames(input);
+    if (launchAgentNames.includes(SOCRATIC_ANALYST_LOCAL_NAME)) {
+      return {
+        block: true,
+        reason: `${SOCRATIC_ANALYST_LOCAL_NAME} is an unsafe unqualified protected-agent alias; use ${SOCRATIC_ANALYST_AGENT_NAME}.`,
+      };
     }
 
     const launches = collectProtectedLaunches(input, ctx.cwd);
