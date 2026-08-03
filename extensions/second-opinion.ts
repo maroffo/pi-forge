@@ -65,6 +65,7 @@ type ExtensionDependencies = {
   resolveLaunchContract: ResolveLaunchContract;
   pingTimeoutMs: number;
   spawnAckTimeoutMs: number;
+  loadChain?: () => ChainDefinition;
 };
 
 type PreparedBrief = {
@@ -329,6 +330,12 @@ function loadChain(): ChainDefinition {
   return parsed;
 }
 
+function freezeChainSnapshot<T>(value: T): T {
+  if (!value || typeof value !== "object" || Object.isFrozen(value)) return value;
+  for (const nested of Object.values(value as Record<string, unknown>)) freezeChainSnapshot(nested);
+  return Object.freeze(value);
+}
+
 export async function preflightSecondOpinion(
   definition: ChainDefinition,
   ctx: ExtensionContext,
@@ -540,6 +547,7 @@ function throwIfCancelled(signal?: AbortSignal): void {
 async function launchExpertPanel(
   pi: ExtensionAPI,
   dependencies: ExtensionDependencies,
+  definition: ChainDefinition,
   target: string,
   ctx: ExtensionContext,
   signal?: AbortSignal,
@@ -547,7 +555,6 @@ async function launchExpertPanel(
 ): Promise<LaunchOutcome> {
   try {
     throwIfCancelled(signal);
-    const definition = loadChain();
     const models = validateChainDisclosure(definition);
     validatePiSubagentsRuntime(pi);
     await preflightSecondOpinion(definition, ctx, dependencies.resolveLaunchContract);
@@ -612,6 +619,9 @@ export default function secondOpinionExtension(
   pi: ExtensionAPI,
   dependencies: ExtensionDependencies = DEFAULT_DEPENDENCIES,
 ): void {
+  const loadedDefinition = (dependencies.loadChain ?? loadChain)();
+  validateChainDisclosure(loadedDefinition);
+  const definition = freezeChainSnapshot(loadedDefinition);
   let automaticPanelState: AutomaticPanelState = "disabled";
   let socraticRecommendationReceipt: SocraticRecommendationReceipt | undefined;
   pi.on("session_start", () => {
@@ -651,7 +661,7 @@ export default function secondOpinionExtension(
       const draft = buildSecondOpinionBrief(prepared);
       const target = await reviewPreparedBrief(draft, ctx, signal);
       const outcome = target
-        ? await launchExpertPanel(pi, dependencies, target, ctx, signal)
+        ? await launchExpertPanel(pi, dependencies, definition, target, ctx, signal)
         : { status: "cancelled" } as const;
       return {
         content: [{ type: "text", text: launchOutcomeText(outcome) }],
@@ -729,6 +739,7 @@ export default function secondOpinionExtension(
       const outcome = await launchExpertPanel(
         pi,
         dependencies,
+        definition,
         target,
         ctx,
         signal,
@@ -800,7 +811,7 @@ export default function secondOpinionExtension(
     handler: async (args, ctx) => {
       try {
         const target = resolveTarget(args, ctx.sessionManager.getBranch());
-        const outcome = await launchExpertPanel(pi, dependencies, target, ctx);
+        const outcome = await launchExpertPanel(pi, dependencies, definition, target, ctx);
         ctx.ui.notify(
           launchOutcomeText(outcome),
           outcome.status === "unknown" ? "warning" : "info",
