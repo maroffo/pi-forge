@@ -295,6 +295,7 @@ function extensionHarness(options: {
     reply: (data: unknown, success?: boolean, error?: { code?: string; message?: string }) => void,
   ) => void;
   spawnAckTimeoutMs?: number;
+  loadChain?: () => any;
 } = {}) {
   const listeners = new Map<string, Set<(payload: unknown) => void>>();
   const emitted: Array<{ name: string; payload: Record<string, unknown> }> = [];
@@ -347,6 +348,7 @@ function extensionHarness(options: {
     resolveLaunchContract: options.resolveLaunchContract ?? (async (input) => isolatedContract(input)),
     pingTimeoutMs: 50,
     spawnAckTimeoutMs: options.spawnAckTimeoutMs ?? 50,
+    loadChain: options.loadChain,
   });
 
   return { commands, emitted, lifecycleHandlers, tools };
@@ -399,6 +401,50 @@ test("runtime validation accepts an explicitly loaded pi-subagents extension", (
       sourceInfo: { path: join(ROOT, "node_modules", "pi-subagents", "index.ts") },
     }],
   } as any);
+});
+
+test("extension snapshots the reviewed chain when it registers", async () => {
+  let activeDefinition = buildSecondOpinionChain();
+  let registeredSnapshot: any;
+  let loads = 0;
+  const harness = extensionHarness({
+    loadChain() {
+      loads += 1;
+      registeredSnapshot = structuredClone(activeDefinition);
+      return registeredSnapshot;
+    },
+  });
+  assert.equal(loads, 1);
+  assert.equal(Object.isFrozen(registeredSnapshot), true);
+  assert.equal(Object.isFrozen(registeredSnapshot.chain[0].parallel[0]), true);
+  assert.throws(() => {
+    registeredSnapshot.chain[0].parallel[0].model = "mutated/provider";
+  }, TypeError);
+
+  activeDefinition = structuredClone(activeDefinition);
+  (activeDefinition.chain[0] as any).parallel[0].model = "changed/provider";
+  let confirmationReached = false;
+  const notifications: Array<{ message: string; level?: string }> = [];
+  await harness.commands.get("expert-panel")?.("artifact captured after registration", {
+    hasUI: true,
+    cwd: ROOT,
+    sessionManager: { getBranch: () => [], getSessionFile: () => null },
+    ui: {
+      confirm: async () => {
+        confirmationReached = true;
+        return false;
+      },
+      notify: (message: string, level?: string) => notifications.push({ message, level }),
+    },
+  });
+
+  assert.equal(loads, 1);
+  assert.equal(confirmationReached, true);
+  assert.deepEqual(notifications.at(-1), {
+    message: "Expert panel cancelled before disclosure.",
+    level: "info",
+  });
+  assert.equal(harness.emitted.filter((event) => event.payload.method === "spawn").length, 0);
 });
 
 test("automatic panel command parser and payload scanner fail closed", () => {
