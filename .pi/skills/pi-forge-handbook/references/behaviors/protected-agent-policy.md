@@ -22,11 +22,11 @@ Unsafe launches return a blocking reason before spawn. Accepted launch calls rem
 
 ## Exceptional paths
 
-Runtime configuration read failure, forced top-level async, missing model, modified package source, fallback candidates, inherited skills, added tools or extensions, custom destinations, output persistence, the unqualified Socratic alias, delayed execution, and unsafe resume block. A true protected resume remains unavailable until the upstream atomic contract exists.
+Runtime configuration read failure, forced top-level async, missing model, modified package source, fallback candidates, inherited skills, added tools or extensions, custom destinations, output persistence, the unqualified Socratic alias, delayed execution, and unsafe resume block. The coupled generic direct-Claude route also fails closed on invalid descriptor input, readiness or route evidence, changed same-pane state, and any attempt to substitute it for protected work. A true protected resume remains unavailable until the upstream atomic contract exists.
 
 ## Source of truth
 
-Identity definitions live at `reviewer-agent-names`, `tech-writer-agent-name`, `socratic-analyst-agent-name`, `artifact-agent-names`, and `writer-agent-name`. `socratic-analyst-agent` is an authored artifact-only definition, while `socratic-analysis-skill` owns its safe parent launch contract. Effective enforcement lives at `protected-launch-collector`, `protected-launch-validator`, `protected-resume-validator`, and `agent-policy-extension`. `lifecycle-writer-agent` and `telemetry-writer-input` are coupled literal consumers that require review when the writer identity changes.
+Identity definitions live at `reviewer-agent-names`, `tech-writer-agent-name`, `socratic-analyst-agent-name`, `artifact-agent-names`, and `writer-agent-name`. `socratic-analyst-agent` is an authored artifact-only definition, while `socratic-analysis-skill` owns its safe parent launch contract. Effective protected enforcement lives at `protected-launch-collector`, `protected-launch-validator`, `protected-resume-validator`, and `agent-policy-extension`. The coupled generic Herdr direct-Claude model, role, readiness, route-evidence, and argv source is `herdr-claude-launch-policy`; it is not protected-agent enforcement. `lifecycle-writer-agent` and `telemetry-writer-input` are coupled literal consumers that require review when the writer identity changes.
 
 ## Generated artifacts
 
@@ -34,7 +34,7 @@ Reviewer agents are generated from canonical reviewer definitions and the privat
 
 ## Tests
 
-Agent-policy tests cover input shapes, Socratic identity and override rejection, package baselines, runtime configuration, attestations, reload, async source identity, and resume. Socratic, engineering, reviewer, technical-writer, lifecycle, orchestration, and runtime probes cover coupled contracts and package discovery.
+Agent-policy tests cover input shapes, Socratic identity and override rejection, package baselines, runtime configuration, attestations, reload, async source identity, and resume. Socratic, engineering, reviewer, technical-writer, lifecycle, orchestration, and runtime probes cover coupled contracts and package discovery. Direct-Claude fixture tests execute the descriptor against a fake local command and verify redaction, exact argv, failures, and route/proxy conflicts without a model call.
 
 ## Registers
 
@@ -49,6 +49,7 @@ Agent-policy tests cover input shapes, Socratic identity and override rejection,
 - `socratic-analyst-agent-name`
 - `socratic-analyst-agent`
 - `socratic-analysis-skill`
+- `herdr-claude-launch-policy`
 - `artifact-agent-names`
 - `writer-agent-name`
 - `protected-launch-collector`

@@ -18,6 +18,7 @@ Implemented vertical slices:
 - `pi-forge.tech-writer`, an artifact-only technical content drafter;
 - seven package-qualified reviewers sharing one evidence and severity contract;
 - `/orchestrator`, a bounded parent-owned delivery and review loop;
+- `/herdr-orchestrator`, an explicit visible overlay for trusted generic helpers, one bounded writer, and ordinary process supervision;
 - `/plan-forge`, evidence-backed ExecPlans and fresh-session handoffs;
 - `/pr-review`, read-only commit-aware PR review with candidate-execution consent;
 - lifecycle guards for Git mutations, sensitive paths, and post-edit verification;
@@ -57,6 +58,8 @@ Synthesis currently uses `openai-codex/gpt-5.6-sol`, for five model calls in tot
 - GitHub CLI for issue-backed `/plan-forge` and `/pr-review`
 - authentication configured in Pi for all four providers
 
+The optional `/herdr-orchestrator` overlay additionally requires Pi 0.80 or newer, Herdr 0.7.5 or newer, and the separately installed reviewed adapter `@ogulcancelik/pi-herdr@0.4.0`.
+
 ## Install
 
 Pi packages execute extensions with the current user's permissions. Review the published source before installing.
@@ -69,6 +72,16 @@ pi install npm:@maroffo/pi-forge@0.2.0
 ```
 
 Restart Pi or run `/reload` after installation. The Pi Forge runtime rejects a different Pi Subagents version rather than silently changing agent behavior.
+
+Herdr support is optional and is not a Pi Forge dependency. To enable its structured tools, install the exact reviewed adapter separately:
+
+```bash
+pi install npm:@ogulcancelik/pi-herdr@0.4.0
+```
+
+Install Herdr 0.7.5 or newer independently, start Pi inside a Herdr-managed pane, then run `/reload`. Pi Forge does not bundle, install, start, stop, or configure Herdr. Adapter or environment presence never activates Herdr orchestration by itself.
+
+The optional direct-Claude path additionally requires the canonical Claude Code executable at version 2.1.226 or newer, installed and authenticated separately. Pi Forge neither depends on nor installs or authenticates Claude Code. Its preflight accepts the route only when Claude Code reports `apiProvider: "firstParty"` for the observed environment; that is CLI-declared evidence for the intended first-party Anthropic route, not independent or cryptographic endpoint proof. Never paste raw `claude auth status --json` output because it may contain identity fields.
 
 ## Local development install
 
@@ -119,6 +132,7 @@ Create a plan, execute an approved plan, or review a pull request:
 ```text
 /plan-forge 123
 /orchestrator quality_reports/plans/active/2026-07-30_example.md
+/herdr-orchestrator quality_reports/plans/active/2026-07-30_example.md
 /pr-review 456 --no-exec
 ```
 
@@ -141,6 +155,7 @@ Load engineering skills explicitly when needed:
 /skill:second-opinion
 /skill:socratic-analysis
 /skill:orchestrator
+/skill:herdr-orchestrator
 /skill:plan-forge
 /skill:project-checks
 /skill:pr-review
@@ -149,7 +164,34 @@ Load engineering skills explicitly when needed:
 
 `/commit` authorizes one local commit, not a push, amend, branch change, destructive cleanup, or hook bypass. The source-control skill treats an existing index as protected, separates mixed-file changes by exact hunk, and places `git commit` behind an aborting branch conditional.
 
-`/orchestrator` coordinates one scoped writer, fresh artifact-only reviewers, final verification, bounded fix rounds, and presentation. `/plan-forge` writes a self-contained draft plan but does not implement or commit it. `/pr-review` pins immutable base and head OIDs in a mode-0700 throwaway clone and never posts, approves, or merges. Builds, tests, package scripts, Make targets, and other candidate-controlled code are skipped unless `PI_FORGE_ALLOW_CANDIDATE_CODE=1` is explicitly present or execution occurs in appropriately restricted ephemeral CI. Local candidate commands run with a stripped environment plus temporary HOME and XDG directories, without inherited credentials or agent sockets. That opt-in still grants execution with current-user filesystem and network permissions; it is not a sandbox.
+`/orchestrator` coordinates one scoped writer, fresh artifact-only reviewers, final verification, bounded fix rounds, and presentation. `/herdr-orchestrator` is an explicit opt-in overlay. When selected and ready, one eligible trusted generic Herdr writer may hold the sole delegated implementation lease instead of `pi-forge.software-engineer`; the parent stops editing for that complete lease. Work requiring a protected Pi Forge contract stays on its existing protected route, and normal `/orchestrator` behavior is unchanged outside Herdr mode. Herdr readiness failure never silently falls back or changes transport. Another provider or model requires disclosure and consent before receiving source or artifacts.
+
+Generic advisory helpers receive only `read`, `grep`, `find`, and `ls`, without shell, write, Herdr, or subagent capability. Peer exchange is parent-mediated only. The parent may persist a complete captured result to a temporary Markdown artifact outside the repository, but incomplete alternate-screen output is handled with bounded concise continuation turns and then an explicit evidence gap, never a capability expansion or fabricated complete artifact.
+
+Pi remains the default Herdr agent. For an approved task, the parent may instead propose canonical Claude Code using exactly `claude-fable-5` or exactly `claude-opus-5`, never `fable`, `opus`, another model, or a fallback. Both roles are supported: a capability-read-only helper uses safe mode, `permission-mode plan`, and only `Read,Grep,Glob`; the one trusted generic writer uses safe mode, `permission-mode acceptEdits`, and only `Read,Grep,Glob,Edit,Write,Bash`. Both disable Chrome and slash commands and require strict MCP configuration. No extra native arguments, resume, plugins, agents, extra directories, remote execution, background mode, or worktree mode are allowed.
+
+The packaged `skills/herdr-orchestrator/scripts/prepare-claude-launch.mjs` script is the structured model, role, argument, readiness, conflict, and route-evidence source. The parent resolves it relative to the loaded skill and submits it once in the future agent pane with exact closed model/role input. It captures child stdio, uses no shell, invokes `claude` only for `--version`, `--help`, and `auth status --json`, and emits either one sanitized ready descriptor or one fixed error. It rejects versions below 2.1.226, prereleases, missing flags, logged-out or non-`firstParty` status, unsafe authentication tokens, the four Claude routing variables, and uppercase or lowercase HTTP(S)/ALL proxy variables. It never emits environment values, raw auth JSON, identity fields, exception details, executable paths, or local paths.
+
+A ready descriptor records that Claude Code declared `apiProvider: "firstParty"` for the preflight process environment. This identifies the intended first-party Anthropic route but does not cryptographically attest the endpoint, independently observe network routing, neutralize admin-managed policy, or atomically bind Herdr's later start. Captured stdio contains ordinary child output, but a hostile or replaced executable or concurrent local mutation is outside the trusted-worker boundary. If that evidence is insufficient, or independently proven routing is required, stop and use an appropriate OS and network boundary. Never silently fall back to Pi.
+
+Copy-safe requests for the two roles are:
+
+```text
+/herdr-orchestrator Propose exact model claude-fable-5 as one capability-read-only helper for this task. Show the required same-pane route evidence and limitation, then ask for fresh launch consent.
+/herdr-orchestrator Propose exact model claude-opus-5 as the sole trusted generic writer for this task. Show the required same-pane route evidence and limitation, then ask for fresh launch consent.
+```
+
+These requests select a proposal only. They do not waive the later disclosure confirmation. After a descriptor passes and before every start, the parent discloses the CLI-declared route evidence and its endpoint-attestation limitation, exact model, precise source/artifact/data categories, purpose and role, admin-policy caveat, and possible local interactive-session persistence. Explicit consent is required for every launch; installation, Herdr selection, a request naming the model, or earlier consent never carries forward.
+
+After consent, Herdr must start `kind: "claude"` in the same unchanged pane with the descriptor's exact `agentArgs`, with no intervening command or environment mutation. A stale or ambiguous descriptor, changed pane/environment, decline, model unavailability, preflight or start failure, unauthorized blocked permission, unknown lifecycle, or incomplete output remains a gap with no alias, retry, resume, fallback, Pi substitution, or transport switch. The package script does not enforce consent or Herdr lifecycle because Pi Forge owns neither the Herdr runtime nor an atomic preflight-to-start binding.
+
+Every ordinary process is classified before launch. A proven checkout-read-only process may overlap a writer. A potentially mutating generator, build, watcher, server, test, or uncertain command shares the sole writer lease and must be confirmed stopped before parent or agent edits resume. If `herdr_pane run` returns a transport, protocol, or JSON error, the parent does not resend: it inspects the recorded pane once for the unique exit marker and reports the command outcome separately from the transport error, or leaves the result unknown and open.
+
+Automatic pane retirement is the default only for exact workflow-created panes that retain continuous exclusive workflow custody and pass all evidence, process, lease, preservation, and follow-up gates. Users may preserve all created panes or exact created IDs, overriding automatic retirement. Immediately before one close attempt, the parent freshly resolves the recorded current canonical ID with exact `herdr_pane get`; agent panes also require exact-name `herdr_agent get`; revalidation and close stay adjacent with no unrelated call or user round. Any move, alias/canonical-ID change, rename, replacement, reuse, repurposing, external interaction, unexpected foreground/cwd, or possible concurrent mutation permanently disables automatic close for that entry; caller, foreign, preserved, active, uncertain, or incomplete panes remain open. This narrows but cannot eliminate TOCTOU because Herdr has no ownership-conditional close; ambiguous close is never retried and is checked once with exact `herdr_pane get`, never workspace-list absence. Closing never stops work or releases a lease, and a fully successful final pass may report `no workflow panes remain`.
+
+Herdr panes, worktrees, prompts, safe mode, permission modes, declared paths, and tool lists are workflow controls, not security boundaries. Herdr helpers run with current-user permissions and are suitable only for trusted work; admin-managed Claude policy and current-user environment behavior may remain. Same-pane sequencing reduces environment drift but is not cryptographic route attestation or atomic launch binding. A generic writer's `bash` tool can invoke installed Herdr or agent CLIs despite its visible tool list; the same is true of a direct Claude writer's `Bash` tool. The workflow explicitly forbids that behavior but does not claim enforcement or path confinement. `acceptEdits` does not authorize commits, shell bypass, permission expansion, or external side effects. Untrusted execution requires an OS sandbox or container; protected work uses the separately selected protected path. A direct Claude session is never a protected Pi Forge agent or protected-review substitute. Every package-qualified Pi Forge writer, reviewer, technical writer, or analyst, plus Socratic Analysis, Second Opinion, and Expert Panel, stays on its existing pi-subagents or guarded route. Herdr lifecycle settlement is not a result; the parent reads the handoff and reruns evidence.
+
+`/plan-forge` writes a self-contained draft plan but does not implement or commit it. `/pr-review` pins immutable base and head OIDs in a mode-0700 throwaway clone and never posts, approves, or merges. Builds, tests, package scripts, Make targets, and other candidate-controlled code are skipped unless `PI_FORGE_ALLOW_CANDIDATE_CODE=1` is explicitly present or execution occurs in appropriately restricted ephemeral CI. Local candidate commands run with a stripped environment plus temporary HOME and XDG directories, without inherited credentials or agent sockets. That opt-in still grants execution with current-user filesystem and network permissions; it is not a sandbox.
 
 `/forge-telemetry` shows schema-v2 aggregate session counters from custom entries that never enter model context. The public `session-telemetry` skill can extract a sanitized active-branch JSONL trace or summary from historical raw Pi v2/v3 session files. One result classifier aligns successful direct edits, genuinely launched protected writers, errors, and successful recognized verification across counters and ordered events. It excludes prompt and response text, thinking, source, paths, commands, output, findings, secrets, session paths, and provider/model identifiers. Nothing is transmitted automatically.
 
