@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "files": {
-    "README.md": "f71a6e0850ec43f93620e2d1220e4437a47ba4df9edb3a5d6831ad4ff9af8378",
+    "README.md": "220e9ba884b2c6fd29171c0cfcac383ead5f676eb1c0031cdabf5a3d047d6713",
     "agent-skills/pi-forge-implementation-contract/SKILL.md": "37adfcff7a5fc4356b3440c7b90e115604f1ee160649c04efc7dbe56e3be4ae2",
     "agent-skills/pi-forge-review-contract/SKILL.md": "87834932adaf32e3a59417d9ff408f5f8e018bbabc212dc492c18048075650cd",
     "agent-skills/pi-forge-writing-contract/SKILL.md": "93dba08e84a9f3f0e2b41e27f5d14d7825d070848ddcd8f80b94dd0698d6a03b",
