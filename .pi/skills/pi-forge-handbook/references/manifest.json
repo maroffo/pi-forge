@@ -117,11 +117,13 @@
         "lock-runtime-version",
         "socratic-analyst-agent-name",
         "socratic-analyst-agent",
-        "socratic-analysis-skill"
+        "socratic-analysis-skill",
+        "herdr-claude-launch-policy"
       ],
       "testPaths": [
         "tests/agent-policy.test.ts",
         "tests/engineering-core.test.ts",
+        "tests/herdr-claude.test.ts",
         "tests/lifecycle.test.ts",
         "tests/orchestration.test.ts",
         "tests/reviewer-fleet.test.ts",
@@ -142,10 +144,13 @@
         "extensions/lifecycle.ts",
         "package-lock.json",
         "package.json",
+        "prompts/herdr-orchestrator.md",
         "scripts/build-reviewers.mjs",
         "scripts/build-tech-writer.mjs",
         "scripts/check-package.mjs",
         "scripts/check-runtime-resources.mjs",
+        "skills/herdr-orchestrator/SKILL.md",
+        "skills/herdr-orchestrator/scripts/prepare-claude-launch.mjs",
         "skills/orchestrator/SKILL.md",
         "skills/plan-forge/references/implementation-prompt.md",
         "skills/socratic-analysis/SKILL.md",
@@ -521,6 +526,12 @@
       "identifier": "SOCRATIC_ANALYST_AGENT_NAME"
     },
     {
+      "id": "herdr-claude-launch-policy",
+      "type": "code-declaration",
+      "path": "skills/herdr-orchestrator/scripts/prepare-claude-launch.mjs",
+      "identifier": "CLAUDE_LAUNCH_POLICY"
+    },
+    {
       "id": "automatic-panel-command-parser",
       "type": "code-declaration",
       "path": "extensions/second-opinion.ts",
@@ -723,6 +734,13 @@
       ]
     },
     {
+      "path": "prompts/herdr-orchestrator.md",
+      "status": "mapped",
+      "behaviorIds": [
+        "protected-agent-policy"
+      ]
+    },
+    {
       "path": "prompts/second-opinion.md",
       "status": "mapped",
       "behaviorIds": [
@@ -786,6 +804,20 @@
       "status": "mapped",
       "behaviorIds": [
         "expert-panel"
+      ]
+    },
+    {
+      "path": "skills/herdr-orchestrator/SKILL.md",
+      "status": "mapped",
+      "behaviorIds": [
+        "protected-agent-policy"
+      ]
+    },
+    {
+      "path": "skills/herdr-orchestrator/scripts/prepare-claude-launch.mjs",
+      "status": "mapped",
+      "behaviorIds": [
+        "protected-agent-policy"
       ]
     },
     {
@@ -890,6 +922,13 @@
     },
     {
       "path": "tests/engineering-core.test.ts",
+      "status": "mapped",
+      "behaviorIds": [
+        "protected-agent-policy"
+      ]
+    },
+    {
+      "path": "tests/herdr-claude.test.ts",
       "status": "mapped",
       "behaviorIds": [
         "protected-agent-policy"

@@ -18,7 +18,10 @@ const COMMAND_TIMEOUT_MS = 20 * 60 * 1000;
 const MAX_COMMAND_OUTPUT_BYTES = 1024 * 1024;
 const REQUIRED_PACK_PATHS = [
   "extensions/score.ts",
+  "prompts/herdr-orchestrator.md",
   "prompts/project-checks.md",
+  "skills/herdr-orchestrator/SKILL.md",
+  "skills/herdr-orchestrator/scripts/prepare-claude-launch.mjs",
   "skills/orchestrator/SKILL.md",
   "skills/project-checks/SKILL.md",
   "skills/session-telemetry/SKILL.md",

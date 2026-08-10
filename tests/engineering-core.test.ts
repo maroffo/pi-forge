@@ -6,6 +6,12 @@ import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import {
+  CLAUDE_CONFLICTING_ENVIRONMENT_VARIABLES,
+  CLAUDE_LAUNCH_POLICY,
+  CLAUDE_REQUIRED_HELP_FLAGS,
+  CLAUDE_ROLE_ARGUMENT_TAILS,
+} from "../skills/herdr-orchestrator/scripts/prepare-claude-launch.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -52,6 +58,160 @@ test("npm release metadata and installation instructions stay explicit", async (
   assert.match(readme, new RegExp(`pi install npm:pi-subagents@${escapedPiSubagentsVersion}`));
   assert.match(readme, /pi install npm:@maroffo\/pi-forge@0\.2\.0/);
   assert.match(readme, /execute extensions with the current user's permissions/);
+});
+
+test("optional Herdr overlay is packaged, documented, and dependency-free", async () => {
+  const manifest = JSON.parse(await text("package.json"));
+  const packageCheck = await text("scripts/check-package.mjs");
+  const runtimeCheck = await text("scripts/check-runtime-resources.mjs");
+  const releaseCheck = await text("scripts/check-release.mjs");
+  const readme = await text("README.md");
+  const architecture = await text("docs/architecture.md");
+  const workingAgreement = await text("AGENTS.md.example");
+
+  assert.equal(manifest.dependencies?.["@ogulcancelik/pi-herdr"], undefined);
+  for (const resource of [
+    "prompts/herdr-orchestrator.md",
+    "skills/herdr-orchestrator/SKILL.md",
+    "skills/herdr-orchestrator/scripts/prepare-claude-launch.mjs",
+  ]) {
+    const escaped = resource.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    assert.match(packageCheck, new RegExp(escaped));
+    assert.match(runtimeCheck, new RegExp(escaped));
+    assert.match(releaseCheck, new RegExp(escaped));
+  }
+  assert.match(runtimeCheck, /\["herdr-orchestrator", "prompt"\]/);
+  assert.match(runtimeCheck, /\["skill:herdr-orchestrator", "skill"\]/);
+  assert.match(runtimeCheck, /assertHerdrOrchestratorPromptExpansion/);
+  assert.match(runtimeCheck, /capturePromptBeforeProvider/);
+  assert.match(runtimeCheck, /expanded-with-both-skills-and-aborted-before-provider/);
+  assert.match(runtimeCheck, /ordinary-and-plain-prompt-text-did-not-explicitly-select-herdr/);
+
+  assert.match(readme, /pi install npm:@ogulcancelik\/pi-herdr@0\.4\.0/);
+  assert.match(readme, /Herdr 0\.7\.5 or newer/);
+  assert.match(readme, /Herdr support is optional and is not a Pi Forge dependency/);
+  assert.match(readme, /never silently falls back/);
+  assert.match(readme, /Generic advisory helpers receive only `read`, `grep`, `find`, and `ls`/);
+  assert.match(readme, /Peer exchange is parent-mediated only/);
+  assert.match(readme, /potentially mutating.*shares the sole writer lease/s);
+  assert.match(readme, /does not resend.*inspects the recorded pane once/s);
+  assert.match(readme, /writer's `bash` tool can invoke installed Herdr or agent CLIs/);
+  assert.match(readme, /does not claim enforcement or path confinement/);
+  assert.match(readme, /Automatic pane retirement is the default only for exact workflow-created panes that retain continuous exclusive workflow custody/);
+  assert.match(readme, /Users may preserve all created panes or exact created IDs, overriding automatic retirement/);
+  assert.match(readme, /freshly resolves the recorded current canonical ID with exact `herdr_pane get`/);
+  assert.match(readme, /agent panes also require exact-name `herdr_agent get`/);
+  assert.match(readme, /revalidation and close stay adjacent with no unrelated call or user round/);
+  assert.match(readme, /move, alias\/canonical-ID change, rename, replacement, reuse, repurposing, external interaction, unexpected foreground\/cwd, or possible concurrent mutation permanently disables automatic close/);
+  assert.match(readme, /narrows but cannot eliminate TOCTOU/);
+  assert.match(readme, /ambiguous close is never retried and is checked once with exact `herdr_pane get`, never workspace-list absence/);
+  assert.match(readme, /Closing never stops work or releases a lease/);
+  assert.match(readme, /`no workflow panes remain`/);
+  assert.match(readme, /Every package-qualified Pi Forge writer, reviewer, technical writer, or analyst, plus Socratic Analysis, Second Opinion, and Expert Panel, stays on its existing pi-subagents or guarded route/);
+  assert.match(architecture, /## Optional Herdr control plane/);
+  assert.match(architecture, /active Herdr environment or installed adapter never selects this mode automatically/);
+  assert.match(architecture, /Peer coordination is exceptional and parent-mediated only/);
+  assert.match(architecture, /potentially mutating.*retains the lease until confirmed stopped/s);
+  assert.match(architecture, /prompt-level non-selection by ordinary `\/orchestrator` and plain requests/);
+  assert.match(architecture, /do not claim to observe model compliance or runtime tool choice/);
+  assert.match(architecture, /invocation-local registry containing each original returned pane ID and aliases, expected current canonical ID, exact workspace\/tab/);
+  assert.match(architecture, /caller and foreign panes never enter the cleanup set/);
+  assert.match(architecture, /focus, names, globs, broad pane matching, and workspace sweeps never discover targets/);
+  assert.match(architecture, /pane moves change the workspace-qualified canonical ID while old IDs can remain aliases/);
+  assert.match(architecture, /alias is not durable ownership proof/);
+  assert.match(architecture, /permanently ends custody and disables automatic close/);
+  assert.match(architecture, /Retirement follows usefulness, evidence, and fresh identity, not historical registry state or terminal lifecycle labels/);
+  assert.match(architecture, /exact `herdr_pane get` must return the expected canonical pane, workspace, and every exposed occupant field/);
+  assert.match(architecture, /recorded tab is audit-only when the structured result does not expose it/);
+  assert.match(architecture, /agent also requires exact-name `herdr_agent get`/);
+  assert.match(architecture, /close call follows those checks without an unrelated tool call or user round/);
+  assert.match(architecture, /narrows but cannot eliminate TOCTOU/);
+  assert.match(architecture, /no generation\/ownership-conditional close/);
+  assert.match(architecture, /automatic cleanup assumes a trusted environment with no concurrent local mutation/);
+  assert.match(architecture, /Closing is terminal resource lifecycle, not cancellation or lease release/);
+  assert.match(architecture, /one exact `herdr_pane get` on the pre-close canonical ID/);
+  assert.match(architecture, /Workspace `pane_list` absence is never closure proof/);
+  assert.match(architecture, /interactive closure discards context only after the parent owns the complete evidence/);
+  assert.match(architecture, /Every package-qualified Pi Forge writer, reviewer, technical writer, and analyst remains on the normal guarded `subagent` path/);
+  assert.match(workingAgreement, /Use Herdr only when the user explicitly selects it/);
+  assert.match(workingAgreement, /Potentially mutating Herdr process panes share that lease/);
+  assert.match(workingAgreement, /peer exchanges.*relayed by the parent only/);
+  assert.match(workingAgreement, /Automatically retire only exact workflow-created panes with continuous exclusive custody/);
+  assert.match(workingAgreement, /fresh exact canonical `herdr_pane get` revalidation/);
+  assert.match(workingAgreement, /agent panes also require exact-name `herdr_agent get`/);
+  assert.match(workingAgreement, /Keep revalidation and the one close attempt adjacent/);
+  assert.match(workingAgreement, /move, alias\/canonical-ID change, replacement, reuse, repurposing, external interaction, or possible concurrent mutation disables automatic close/);
+  assert.match(workingAgreement, /Preserve caller, foreign, user-preserved, active, uncertain, or incomplete panes/);
+  assert.match(workingAgreement, /closing never stops work or releases a lease, and it is not atomic ownership enforcement/);
+  assert.match(workingAgreement, /trusted writer's shell can invoke installed agent CLIs/);
+});
+
+test("direct Claude support stays optional, executable, exact, and route-truthful", async () => {
+  const manifest = JSON.parse(await text("package.json"));
+  const overlay = await text("skills/herdr-orchestrator/SKILL.md");
+  const preflight = await text("skills/herdr-orchestrator/scripts/prepare-claude-launch.mjs");
+  const fixtureTests = await text("tests/herdr-claude.test.ts");
+  const readme = await text("README.md");
+  const architecture = await text("docs/architecture.md");
+  const workingAgreement = await text("AGENTS.md.example");
+
+  assert.equal(manifest.dependencies?.["@anthropic-ai/claude-code"], undefined);
+  assert.equal(manifest.dependencies?.["claude-code"], undefined);
+  assert.match(readme, /canonical Claude Code executable at version 2\.1\.226 or newer, installed and authenticated separately/);
+  assert.match(readme, /Pi Forge neither depends on nor installs or authenticates Claude Code/);
+  for (const model of CLAUDE_LAUNCH_POLICY.models) assert.ok(readme.includes(model));
+  assert.match(readme, /never `fable`, `opus`, another model, or a fallback/);
+  assert.match(readme, /capability-read-only helper uses safe mode, `permission-mode plan`, and only `Read,Grep,Glob`/);
+  assert.match(readme, /trusted generic writer uses safe mode, `permission-mode acceptEdits`, and only `Read,Grep,Glob,Edit,Write,Bash`/);
+  assert.match(readme, /explicit consent is required for every launch/i);
+  assert.match(readme, /interactive-session persistence/);
+  assert.match(readme, /never emits environment values, raw auth JSON, identity fields, exception details, executable paths, or local paths/);
+  assert.match(readme, /no alias, retry, resume, fallback, Pi substitution, or transport switch/);
+  assert.match(readme, /direct Claude session is never a protected Pi Forge agent or protected-review substitute/);
+  assert.match(readme, /not independent or cryptographic endpoint proof/);
+  assert.match(readme, /Never silently fall back to Pi/);
+  assert.match(readme, /Propose exact model claude-fable-5 as one capability-read-only helper/);
+  assert.match(readme, /Propose exact model claude-opus-5 as the sole trusted generic writer/);
+  assert.match(readme, /requests select a proposal only.*do not waive the later disclosure confirmation/s);
+
+  assert.match(preflight, /spawnSync\("claude", args/);
+  assert.match(preflight, /shell: false/);
+  assert.match(preflight, /stdio: \["ignore", "pipe", "pipe"\]/);
+  assert.match(preflight, /timeout: CLAUDE_COMMAND_TIMEOUT_MS/);
+  assert.match(preflight, /maxBuffer: CLAUDE_COMMAND_MAX_BUFFER_BYTES/);
+  assert.match(preflight, /runClaude\(CLAUDE_PREFLIGHT_INVOCATIONS\.version/);
+  assert.match(preflight, /runClaude\(CLAUDE_PREFLIGHT_INVOCATIONS\.help/);
+  assert.match(preflight, /runClaude\(CLAUDE_PREFLIGHT_INVOCATIONS\.auth/);
+  for (const flag of CLAUDE_REQUIRED_HELP_FLAGS) assert.ok(preflight.includes(flag));
+  for (const name of CLAUDE_CONFLICTING_ENVIRONMENT_VARIABLES) assert.ok(preflight.includes(name));
+  assert.deepEqual(CLAUDE_ROLE_ARGUMENT_TAILS["read-only"], [
+    "--safe-mode", "--permission-mode", "plan", "--strict-mcp-config", "--no-chrome",
+    "--disable-slash-commands", "--tools", "Read,Grep,Glob",
+  ]);
+  assert.deepEqual(CLAUDE_ROLE_ARGUMENT_TAILS.writer, [
+    "--safe-mode", "--permission-mode", "acceptEdits", "--strict-mcp-config", "--no-chrome",
+    "--disable-slash-commands", "--tools", "Read,Grep,Glob,Edit,Write,Bash",
+  ]);
+  assert.match(fixtureTests, /temporary fake claude executable/);
+  assert.match(fixtureTests, /never performs a network or model call/);
+  assert.match(fixtureTests, /exactly three calls/);
+  assert.match(fixtureTests, /every routing and proxy variable conflicts by presence before spawn/);
+
+  assert.match(architecture, /only direct non-Pi contract is the canonical `claude` executable with `kind: "claude"`/);
+  assert.match(architecture, /structured source for the direct-Claude model, role, argument, readiness, environment-conflict, error, and route-evidence policy/);
+  assert.match(architecture, /not cryptographic endpoint attestation or independent network proof/);
+  assert.match(architecture, /not an atomic preflight-to-start binding/);
+  assert.match(architecture, /Consent, same-pane continuity, Herdr start, and lifecycle remain parent workflow contracts/);
+  assert.match(architecture, /admin-managed policy and current-user environment behavior may remain/);
+  assert.match(architecture, /without network or model access/);
+  assert.match(architecture, /package adds no orchestration runtime, adapter dependency, or Claude Code dependency/);
+
+  assert.match(workingAgreement, /Pi remains the default Herdr agent/);
+  assert.match(workingAgreement, /exact `claude-fable-5` or `claude-opus-5`/);
+  assert.match(workingAgreement, /package-owned same-pane descriptor, its CLI-declared route limitation, and explicit disclosure consent/);
+  assert.match(workingAgreement, /Never expose raw Claude authentication JSON, identity fields, environment values, or child-process failure details/);
+  assert.match(workingAgreement, /not cryptographic endpoint attestation/);
+  assert.match(overlay, /No alias such as `fable` or `opus`/);
 });
 
 test("Pi Forge release workflow stays project-only, phased, and non-publishing", async () => {

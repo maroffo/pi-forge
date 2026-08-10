@@ -12,7 +12,10 @@
 - Prefer simple, local changes that match existing style.
 - Preserve user changes in dirty worktrees.
 - Fix root causes; do not disable functionality or add mock behavior as a workaround.
-- Keep one writer per checkout unless isolated worktrees are intentional.
+- Keep one writer lease per checkout unless isolated worktrees are intentional. Potentially mutating Herdr process panes share that lease; proven checkout-read-only processes may overlap it.
+- Use Herdr only when the user explicitly selects it. In Herdr mode, generic helpers are capability-read-only and peer exchanges are named, bounded, non-recursive, and relayed by the parent only.
+- Automatically retire only exact workflow-created panes with continuous exclusive custody, complete evidence, finished follow-up, confirmed process termination, released leases, and fresh exact canonical `herdr_pane get` revalidation; agent panes also require exact-name `herdr_agent get`. Keep revalidation and the one close attempt adjacent. Any move, alias/canonical-ID change, replacement, reuse, repurposing, external interaction, or possible concurrent mutation disables automatic close. Preserve caller, foreign, user-preserved, active, uncertain, or incomplete panes; closing never stops work or releases a lease, and it is not atomic ownership enforcement.
+- Pi remains the default Herdr agent. Direct Claude Code is per-launch opt-in only for exact `claude-fable-5` or `claude-opus-5`, after the package-owned same-pane descriptor, its CLI-declared route limitation, and explicit disclosure consent; never alias, retry, or fall back.
 
 ## Verification
 
@@ -33,5 +36,7 @@
 
 - Confirm destructive or difficult-to-recover actions.
 - Do not send secrets, credentials, private source, or user data to an additional provider without explicit authorization.
-- Treat worktrees, lifecycle guards, and tool allowlists as workflow controls, not security sandboxes.
+- Treat worktrees, Herdr panes, lifecycle guards, safe mode, permission modes, tool allowlists, declared paths, and prompts as workflow controls, not security sandboxes. A trusted writer's shell can invoke installed agent CLIs despite its visible tool list.
+- Never expose raw Claude authentication JSON, identity fields, environment values, or child-process failure details. Use only the packaged direct-Claude descriptor and its exact arguments; do not synthesize a probe.
+- Claude Code reporting `apiProvider: "firstParty"` is CLI-declared evidence for the intended route, not cryptographic endpoint attestation. Disclose that limitation and possible local session persistence before every consent; require an OS and network boundary when independent routing proof is necessary.
 - Keep session telemetry local unless an exact artifact and destination are explicitly authorized.

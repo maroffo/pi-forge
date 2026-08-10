@@ -37,12 +37,15 @@ const REQUIRED_PACK_PATHS = [
   "docs/socratic-analysis.md",
   "docs/telemetry.md",
   "prompts/commit.md",
+  "prompts/herdr-orchestrator.md",
   "prompts/orchestrator.md",
   "prompts/plan-forge.md",
   "prompts/project-checks.md",
   "prompts/pr-review.md",
   "prompts/second-opinion.md",
   "prompts/socratic-analysis.md",
+  "skills/herdr-orchestrator/SKILL.md",
+  "skills/herdr-orchestrator/scripts/prepare-claude-launch.mjs",
   "skills/orchestrator/SKILL.md",
   "skills/orchestrator/references/review-routing.md",
   "skills/plan-forge/SKILL.md",
@@ -149,12 +152,14 @@ async function assertResourceDiscovery(packageRoot, configDir) {
   const byName = new Map(commands.map((command) => [command.name, command]));
   const expected = [
     ["commit", "prompt"],
+    ["herdr-orchestrator", "prompt"],
     ["orchestrator", "prompt"],
     ["plan-forge", "prompt"],
     ["project-checks", "prompt"],
     ["pr-review", "prompt"],
     ["second-opinion", "prompt"],
     ["socratic-analysis", "prompt"],
+    ["skill:herdr-orchestrator", "skill"],
     ["skill:orchestrator", "skill"],
     ["skill:plan-forge", "skill"],
     ["skill:project-checks", "skill"],
@@ -208,6 +213,94 @@ async function assertProjectMaintainerSkillDiscovery(sourceRoot, configDir) {
     ) {
       throw new Error(`Pi did not discover project-only skill ${name}: ${JSON.stringify(command)}`);
     }
+  }
+}
+
+async function capturePromptBeforeProvider(packageRoot, configDir, temporaryRoot, id, message) {
+  const resultPath = join(temporaryRoot, `${id}.json`);
+  const probePath = join(temporaryRoot, `${id}-probe.ts`);
+  const provider = `${id}-probe`;
+  await writeFile(probePath, `import { writeFileSync } from "node:fs";
+export default function (pi) {
+  pi.registerProvider(${JSON.stringify(provider)}, {
+    baseUrl: "http://127.0.0.1:9/v1",
+    apiKey: "probe",
+    api: "openai-completions",
+    models: [{
+      id: "probe",
+      name: "Prompt Isolation Probe",
+      reasoning: false,
+      input: ["text"],
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      contextWindow: 10000,
+      maxTokens: 100,
+    }],
+  });
+  pi.on("before_agent_start", (event, ctx) => {
+    writeFileSync(${JSON.stringify(resultPath)}, JSON.stringify({
+      prompt: event.prompt,
+      skills: (event.systemPromptOptions.skills ?? []).map((skill) => skill.name),
+    }));
+    ctx.abort();
+  });
+}
+`);
+  await run("pi", [
+    "--mode",
+    "rpc",
+    "--no-session",
+    "--no-extensions",
+    "--extension",
+    probePath,
+    "--model",
+    `${provider}/probe`,
+  ], {
+    cwd: packageRoot,
+    env: minimalEnvironment(configDir),
+    input: `${JSON.stringify({ type: "prompt", message })}\n`,
+  });
+  return JSON.parse(await readFile(resultPath, "utf8"));
+}
+
+async function assertHerdrOrchestratorPromptExpansion(packageRoot, configDir, temporaryRoot) {
+  const positive = await capturePromptBeforeProvider(
+    packageRoot,
+    configDir,
+    temporaryRoot,
+    "herdr-positive",
+    "/herdr-orchestrator runtime-expansion-marker",
+  );
+  if (!positive.prompt.includes("Load and follow both the `herdr-orchestrator` and `orchestrator` skills")
+    || !positive.prompt.includes("runtime-expansion-marker")
+    || !positive.skills.includes("herdr-orchestrator")
+    || !positive.skills.includes("orchestrator")) {
+    throw new Error(`herdr-orchestrator prompt did not expand with both public skills: ${JSON.stringify(positive)}`);
+  }
+
+  const ordinary = await capturePromptBeforeProvider(
+    packageRoot,
+    configDir,
+    temporaryRoot,
+    "orchestrator-negative",
+    "/orchestrator runtime-ordinary-marker",
+  );
+  if (!ordinary.prompt.includes("Load and follow the `orchestrator` skill")
+    || ordinary.prompt.includes("`herdr-orchestrator`")
+    || !ordinary.prompt.includes("runtime-ordinary-marker")) {
+    throw new Error(`ordinary orchestrator prompt selected the Herdr overlay: ${JSON.stringify(ordinary)}`);
+  }
+
+  const plain = await capturePromptBeforeProvider(
+    packageRoot,
+    configDir,
+    temporaryRoot,
+    "plain-negative",
+    "runtime-plain-marker",
+  );
+  if (plain.prompt.includes("Load and follow the `orchestrator` skill")
+    || plain.prompt.includes("`herdr-orchestrator`")
+    || !plain.prompt.includes("runtime-plain-marker")) {
+    throw new Error(`plain prompt selected an orchestration workflow: ${JSON.stringify(plain)}`);
   }
 }
 
@@ -1120,6 +1213,7 @@ async function main() {
 
     await assertProjectMaintainerSkillDiscovery(ROOT, configDir);
     await assertResourceDiscovery(packageRoot, configDir);
+    await assertHerdrOrchestratorPromptExpansion(packageRoot, configDir, temporaryRoot);
     await assertSecondOpinionPromptExpansion(packageRoot, configDir, temporaryRoot);
     await assertSocraticPromptExpansion(packageRoot, configDir, temporaryRoot);
     await assertExtensionDiscovery(packageRoot, configDir);
@@ -1130,7 +1224,7 @@ async function main() {
     console.log(JSON.stringify({
       publishArtifact: "verified",
       commitPrompt: "discovered",
-      publicSkills: ["orchestrator", "plan-forge", "project-checks", "pr-review", "refine-requirements", "second-opinion", "session-telemetry", "socratic-analysis", "source-control"],
+      publicSkills: ["herdr-orchestrator", "orchestrator", "plan-forge", "project-checks", "pr-review", "refine-requirements", "second-opinion", "session-telemetry", "socratic-analysis", "source-control"],
       writerAgent: "pi-forge.software-engineer",
       techWriterAgent: "pi-forge.tech-writer",
       reviewerAgents: REVIEWER_NAMES.map((name) => `pi-forge.${name}`),
@@ -1138,6 +1232,8 @@ async function main() {
       protectedAgentPolicy: "verified",
       projectMaintainerSkills: ["pi-forge-handbook", "pi-forge-harness-audit", "pi-forge-release"],
       automaticPanelCommand: "discovered-default-off",
+      herdrOrchestratorPrompt: "expanded-with-both-skills-and-aborted-before-provider",
+      herdrNegativePromptIsolation: "ordinary-and-plain-prompt-text-did-not-explicitly-select-herdr",
       secondOpinionPrompt: "expanded-and-aborted-before-provider",
       socraticAnalysisPrompt: "expanded-and-aborted-before-provider",
       modelInvocationRequested: false,

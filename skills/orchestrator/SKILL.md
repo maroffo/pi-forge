@@ -13,6 +13,14 @@ Starting this workflow authorizes only the source edits and local verification n
 
 Do not use raw pi-subagents RPC for protected Pi Forge agents. Launch them through the normal `subagent` tool so `extensions/agent-policy.ts` can preflight the request.
 
+## Herdr selection gate
+
+Load and follow the `herdr-orchestrator` overlay in addition to this skill only when the user invokes `/herdr-orchestrator` or the request or approved plan explicitly selects Herdr. Environment variables, installed Herdr tools, and possible benefit from visible delegation do not count as selection. Otherwise do not load or use the overlay.
+
+When Herdr was explicitly selected, apply its readiness gate before delegation or process supervision. If readiness fails, stop and report the missing prerequisite. Do not silently continue through the ordinary parent or `subagent` path; `/orchestrator` is only a separately selected non-Herdr alternative.
+
+When Herdr is selected and ready, one eligible trusted generic Herdr writer may be the sole delegated implementation writer instead of `pi-forge.software-engineer`. Never launch both for the same checkout. Work that requires a protected Pi Forge identity or implementation contract still uses the existing protected route. The parent must stop editing for the entire Herdr writer lease. Outside selected and ready Herdr mode, normal `/orchestrator` writer behavior remains unchanged. Every protected Pi Forge agent, Socratic, Second Opinion, and Expert Panel route remains on its existing supported path in either mode.
+
 ## Entry gate
 
 Skip the full loop for documentation-only changes, typo fixes, or a single local edit with no new behavior. For other work:
@@ -34,7 +42,7 @@ Inspect the real code and project instructions before editing. State the intende
 
 ### 2. Implement
 
-The parent may edit directly or delegate one bounded workstream to `pi-forge.software-engineer`. Keep one writer per checkout. Multiple writers require intentionally isolated worktrees and disjoint integration surfaces.
+Outside selected and ready Herdr mode, the parent may edit directly or delegate one bounded workstream to `pi-forge.software-engineer`. In selected and ready Herdr mode, follow the overlay: the parent may edit directly while no delegated writer lease is active, or one eligible trusted generic Herdr writer may hold the sole delegated implementation lease instead of `pi-forge.software-engineer`. Work requiring the protected implementation contract still uses `pi-forge.software-engineer`. Keep one writer per checkout, never overlap either delegated writer with parent edits, and suspend parent edit permission for the complete Herdr writer lease. Multiple writers require intentionally isolated worktrees and disjoint integration surfaces.
 
 A writer brief must include:
 
@@ -44,7 +52,7 @@ A writer brief must include:
 - required test commands;
 - prohibition on commits and pushes unless separately authorized.
 
-Use exactly one direct writer per subagent call. Set `async: false` explicitly, use the package-qualified identity, and select an explicit canonical provider/model locally; repository defaults must never choose the writer provider. Do not pass a separate thinking override. Do not override its skills, tools, output, acceptance, or session destination. Prefer the current parent model when it is suitable. Before launching the writer on a provider different from the current parent, disclose the exact model, that forked conversation and project instructions plus source read during implementation may be transmitted, and the implementation purpose; obtain explicit consent. Treat the writer report as a claim until the parent inspects the diff and reruns relevant checks.
+When delegating to `pi-forge.software-engineer`, use exactly one direct writer per subagent call. Set `async: false` explicitly, use the package-qualified identity, and select an explicit canonical provider/model locally; repository defaults must never choose the writer provider. Do not pass a separate thinking override. Do not override its skills, tools, output, acceptance, or session destination. Prefer the current parent model when it is suitable. Before launching the writer on a provider different from the current parent, disclose the exact model, that forked conversation and project instructions plus source read during implementation may be transmitted, and the implementation purpose; obtain explicit consent. Treat the writer report as a claim until the parent inspects the diff and reruns relevant checks.
 
 ### 3. Verify
 
