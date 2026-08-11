@@ -50,13 +50,15 @@ test("npm release metadata and installation instructions stay explicit", async (
 
   assert.equal(manifest.repository.url, "git+https://github.com/maroffo/pi-forge.git");
   assert.equal(manifest.publishConfig.access, "public");
+  assert.match(manifest.version, /^\d+\.\d+\.\d+$/);
   assert.equal(lock.version, manifest.version);
   assert.equal(lock.packages[""].version, manifest.version);
   const piSubagentsVersion = manifest.dependencies?.["pi-subagents"];
   assert.match(piSubagentsVersion, /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/);
   const escapedPiSubagentsVersion = piSubagentsVersion.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const escapedPackageVersion = manifest.version.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   assert.match(readme, new RegExp(`pi install npm:pi-subagents@${escapedPiSubagentsVersion}`));
-  assert.match(readme, /pi install npm:@maroffo\/pi-forge@0\.2\.0/);
+  assert.match(readme, new RegExp(`pi install npm:@maroffo/pi-forge@${escapedPackageVersion}`));
   assert.match(readme, /execute extensions with the current user's permissions/);
 });
 

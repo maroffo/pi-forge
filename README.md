@@ -68,12 +68,10 @@ Install the pinned Pi Subagents runtime, then Pi Forge:
 
 ```bash
 pi install npm:pi-subagents@0.37.2
-pi install npm:@maroffo/pi-forge@0.2.0
+pi install npm:@maroffo/pi-forge@0.3.0
 ```
 
 Restart Pi or run `/reload` after installation. The Pi Forge runtime rejects a different Pi Subagents version rather than silently changing agent behavior.
-
-`/herdr-orchestrator` is present in the current source but is not included in the published `0.2.0` package. Until a later release includes it, use the local development installation below to evaluate it; installing `0.2.0` will not expose the command or skill.
 
 Herdr support is optional and is not a Pi Forge dependency. To enable its structured tools, install the exact reviewed adapter separately:
 
