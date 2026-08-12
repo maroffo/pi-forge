@@ -20,7 +20,7 @@ Implemented vertical slices:
 - `/orchestrator`, a bounded parent-owned delivery and review loop;
 - `/herdr-orchestrator`, an explicit visible overlay for trusted generic helpers, one bounded writer, and ordinary process supervision;
 - `/plan-forge`, evidence-backed ExecPlans and fresh-session handoffs;
-- `/pr-review`, read-only commit-aware PR review with candidate-execution consent;
+- `/pr-review`, commit-aware PR review with candidate-execution consent and an idempotent GitHub `COMMENT` review;
 - lifecycle guards for Git mutations, sensitive paths, and post-edit verification;
 - local sanitized schema-v2 session telemetry, active-branch extraction, and explicit-input cohort aggregation;
 - `/score`, deterministic commit, PR, and excellence readiness from repository gates;
@@ -55,7 +55,7 @@ Synthesis currently uses `openai-codex/gpt-5.6-sol`, for five model calls in tot
 
 - pi coding agent
 - GNU Make for `/score`
-- GitHub CLI for issue-backed `/plan-forge` and `/pr-review`
+- authenticated GitHub CLI for issue-backed `/plan-forge`; `/pr-review` additionally requires pull-request write access
 - authentication configured in Pi for all four providers
 
 The optional `/herdr-orchestrator` overlay additionally requires Pi 0.80 or newer, Herdr 0.7.5 or newer, and the separately installed reviewed adapter `@ogulcancelik/pi-herdr@0.4.0`.
@@ -203,7 +203,7 @@ Herdr panes, worktrees, prompts, safe mode, permission modes, declared paths, an
 
 ### Additional workflow boundaries
 
-`/plan-forge` writes a self-contained draft plan but does not implement or commit it. `/pr-review` pins immutable base and head OIDs in a mode-0700 throwaway clone and never posts, approves, or merges. Builds, tests, package scripts, Make targets, and other candidate-controlled code are skipped unless `PI_FORGE_ALLOW_CANDIDATE_CODE=1` is explicitly present or execution occurs in appropriately restricted ephemeral CI. Local candidate commands run with a stripped environment plus temporary HOME and XDG directories, without inherited credentials or agent sockets. That opt-in still grants execution with current-user filesystem and network permissions; it is not a sandbox.
+`/plan-forge` writes a self-contained draft plan but does not implement or commit it. `/pr-review` pins immutable base and head OIDs in a mode-0700 throwaway clone, keeps the active checkout unchanged, and always publishes the complete sanitized report as one GitHub review with event `COMMENT`, including a body-only review when there are no findings. Every parent-verified Critical, Major, and Minor finding with a proven changed-line anchor is included inline in that same review. An authenticated marker makes repeated review of the same base/head snapshot idempotent; the receipt says whether the newly rendered report matches the already-posted body, and a changed snapshot receives a new review after evidence is rebuilt. The helper permits one retry only after reconciliation confirms absence on the unchanged snapshot and the local error proves `gh` never started. A timeout, nonzero exit, signal, or malformed response may represent a dispatched request and is reconciled but never retried while remote state is unknown. It never approves, requests changes, posts a free-standing issue comment, labels, pushes, or merges. Builds, tests, package scripts, Make targets, and other candidate-controlled code are skipped unless `PI_FORGE_ALLOW_CANDIDATE_CODE=1` is explicitly present or execution occurs in appropriately restricted ephemeral CI. Local candidate commands run with a stripped environment plus temporary HOME and XDG directories, without inherited credentials or agent sockets. That opt-in still grants execution with current-user filesystem and network permissions; it is not a sandbox.
 
 `/forge-telemetry` shows schema-v2 aggregate session counters from custom entries that never enter model context. The public `session-telemetry` skill can extract a sanitized active-branch JSONL trace or summary from historical raw Pi v2/v3 session files. One result classifier aligns successful direct edits, genuinely launched protected writers, errors, and successful recognized verification across counters and ordered events. It excludes prompt and response text, thinking, source, paths, commands, output, findings, secrets, session paths, and provider/model identifiers. Nothing is transmitted automatically.
 

@@ -58,6 +58,8 @@ const REQUIRED_PACK_PATHS = [
   "skills/pr-review/references/candidate-execution.md",
   "skills/pr-review/references/evidence.md",
   "skills/pr-review/references/output-format.md",
+  "skills/pr-review/references/publication.md",
+  "skills/pr-review/scripts/post-review.mjs",
   "skills/refine-requirements/SKILL.md",
   "skills/second-opinion/SKILL.md",
   "skills/socratic-analysis/SKILL.md",
