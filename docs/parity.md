@@ -17,7 +17,7 @@ Pi Forge targets equivalent outcomes and safety invariants through Pi-native mec
 | Project quality-gate onboarding | `skills/project-checks/` | public read-only metadata inspector plus parent-reviewed Make proposal | Implemented |
 | Orchestration | `skills/orchestrator/` | bounded parent protocol plus protected writer and artifact-only reviewers | Implemented |
 | Implementation planning | `skills/plan-forge/` | evidence-backed ExecPlan and `/orchestrator` handoff | Implemented |
-| Pull-request review | `skills/pr-review/` | throwaway clone, commit narrative, protected review fleet, and execution consent gate | Implemented |
+| Pull-request review | `skills/pr-review/` | throwaway clone, commit narrative, protected review fleet, execution consent gate, and idempotent full `COMMENT` review with verified inline findings | Implemented |
 | Review fleet | `agents/*-reviewer/` | seven thin package agents plus one private evidence contract | Implemented |
 | Enforcement hooks | `hooks/` | Pi lifecycle extension for Git, sensitive paths, and fresh verification | Implemented |
 | Session telemetry | `harness-trace` | sanitized schema-v2 custom-entry metrics, active-branch extraction, and explicit-input cohort aggregation | Implemented |

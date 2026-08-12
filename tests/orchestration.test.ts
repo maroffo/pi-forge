@@ -327,13 +327,25 @@ test("plan-forge writes a self-contained plan without implicit implementation or
   assert.match(handoff, /Do not commit, push, open or modify a PR or issue/);
 });
 
-test("pr-review is read-only and gates candidate execution", async () => {
+test("pr-review publishes an idempotent COMMENT review and gates candidate execution", async () => {
   const skill = await text("skills/pr-review/SKILL.md");
   const candidateExecution = await text("skills/pr-review/references/candidate-execution.md");
   const evidence = await text("skills/pr-review/references/evidence.md");
   const output = await text("skills/pr-review/references/output-format.md");
+  const publication = await text("skills/pr-review/references/publication.md");
+  const prompt = await text("prompts/pr-review.md");
 
-  assert.match(skill, /does not authorize comments, approvals, review submissions, labels, pushes, merges/);
+  assert.match(skill, /publishing one resulting GitHub review with event `COMMENT`/);
+  assert.match(skill, /does not authorize `APPROVE`, `REQUEST_CHANGES`, free-standing issue comments, labels, pushes, merges/);
+  assert.match(skill, /completed review always publishes that full report, including when it has no findings/);
+  assert.match(skill, /parent-verified Critical, Major, and Minor finding/);
+  assert.match(skill, /mode-0600 regular file/);
+  assert.match(skill, /invoke the helper exactly once/);
+  assert.match(skill, /same repository, PR, `baseRefOid`, and `headRefOid`/);
+  assert.match(skill, /at most one retry only when GitHub confirms absence on the unchanged snapshot and the local process error proves `gh` never started/);
+  assert.match(skill, /timeout, signal, nonzero `gh` exit, malformed success response.*never retried/s);
+  assert.match(skill, /newly rendered report exactly matches that prior review/);
+  assert.match(skill, /no caller-level retry is allowed/);
   assert.match(skill, /baseRefOid/);
   assert.match(skill, /headRefOid/);
   assert.match(skill, /Save the complete `gh pr diff` patch/);
@@ -361,7 +373,14 @@ test("pr-review is read-only and gates candidate execution", async () => {
   assert.match(evidence, /Never describe an unrun test as failing/);
   assert.match(output, /REJECT AND SPLIT/);
   assert.match(output, /APPROVE is allowed only with no Critical or Major finding and an unchanged snapshot/);
-  assert.match(output, /no remote review was posted/);
+  assert.match(output, /local-only `## Publication receipt`/);
+  assert.match(publication, /review with event `COMMENT`/);
+  assert.match(publication, /no-finding review still publishes the full body with no inline comments/);
+  assert.match(publication, /Concurrent publishers.*can still race/s);
+  assert.match(publication, /Absence plus an unchanged snapshot permits one retry only for a definite local pre-dispatch failure/);
+  assert.match(publication, /currentReportPublished: false/);
+  assert.match(prompt, /one idempotent GitHub review with event `COMMENT`/);
+  assert.match(prompt, /no `APPROVE`, `REQUEST_CHANGES`/);
 });
 
 test("familiar command aliases are thin skill entry points", async () => {
