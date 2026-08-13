@@ -36,6 +36,12 @@ const VERIFY_PATTERNS = [
 
 const SAFE_VERIFY_PREFIX = /^(?:(?:cd\s+[^;&|\n]+|(?:export\s+)?[A-Za-z_][A-Za-z0-9_]*=[^;&|\n]+)\s*&&\s*)*/;
 const SHELL_ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/;
+export const PRIMARY_BRANCH_NAMES = Object.freeze(["dev", "main", "master"]);
+const PRIMARY_BRANCHES = new Set(PRIMARY_BRANCH_NAMES);
+
+export function isPrimaryBranch(branch) {
+  return typeof branch === "string" && PRIMARY_BRANCHES.has(branch);
+}
 
 export function isSourcePath(path, projectRoot) {
   if (typeof path !== "string" || !path.trim()) return false;
@@ -118,6 +124,137 @@ function commandName(value) {
   return basename(value ?? "").toLowerCase();
 }
 
+function directInvocation(command) {
+  if (typeof command !== "string" || command.length > 20_000) return undefined;
+  const segments = shellSegments(command);
+  if (segments.length !== 1 || segments[0].length === 0) return undefined;
+  return { executable: commandName(segments[0][0]), words: segments[0] };
+}
+
+function isSafeRefName(value) {
+  return typeof value === "string"
+    && value.length > 0
+    && value.length <= 255
+    && /^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(value)
+    && !value.includes("..")
+    && !value.includes("//")
+    && !value.includes("@{")
+    && !value.endsWith("/")
+    && !value.endsWith(".")
+    && !value.endsWith(".lock");
+}
+
+function hasUnsafeShellExpansion(value) {
+  return typeof value !== "string" || /[$`<>!*?\[\]{}~\u0000-\u001f\u007f]/.test(value);
+}
+
+function isExplicitRepository(value) {
+  if (typeof value !== "string" || hasUnsafeShellExpansion(value)) return false;
+  const parts = value.split("/");
+  return parts.length === 2
+    && parts.every((part) => /^[A-Za-z0-9][A-Za-z0-9.-]*$/.test(part) && part !== "." && part !== "..");
+}
+
+export function isStandingAuthorizedBranchPush(command, currentBranch) {
+  if (
+    typeof currentBranch !== "string"
+    || !currentBranch
+    || !isSafeRefName(currentBranch)
+    || isPrimaryBranch(currentBranch)
+  ) return false;
+
+  const invocation = directInvocation(command);
+  if (!invocation || invocation.words[0] !== "git") return false;
+
+  const words = invocation.words;
+  let index = 1;
+  const requiredConfig = new Set([
+    "push.followTags=false",
+    "push.gpgSign=false",
+    "push.pushOption=",
+    "push.recurseSubmodules=no",
+    "push.useForceIfIncludes=false",
+  ]);
+  while (words[index] === "-c") {
+    const config = words[index + 1];
+    if (!requiredConfig.delete(config)) return false;
+    index += 2;
+  }
+  if (requiredConfig.size > 0 || words[index]?.toLowerCase() !== "push") return false;
+
+  const args = words.slice(index + 1);
+  let setUpstreamSeen = false;
+  while (args[0]?.startsWith("-")) {
+    const option = args.shift();
+    if ((option === "-u" || option === "--set-upstream") && !setUpstreamSeen) {
+      setUpstreamSeen = true;
+      continue;
+    }
+    return false;
+  }
+  if (args.length !== 2) return false;
+  const [remote, refspec] = args;
+  if (!/^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(remote) || remote === "." || remote === "..") return false;
+  return refspec === `refs/heads/${currentBranch}:refs/heads/${currentBranch}`;
+}
+
+export function parseStandingAuthorizedPullRequestCreate(command, currentBranch) {
+  if (
+    typeof currentBranch !== "string"
+    || !isSafeRefName(currentBranch)
+    || isPrimaryBranch(currentBranch)
+  ) return undefined;
+
+  const invocation = directInvocation(command);
+  if (
+    !invocation
+    || invocation.words[0] !== "gh"
+    || invocation.words[1]?.toLowerCase() !== "pr"
+    || invocation.words[2]?.toLowerCase() !== "create"
+  ) return undefined;
+
+  const values = new Map();
+  const names = new Map([
+    ["--base", "base"], ["-B", "base"],
+    ["--head", "head"], ["-H", "head"],
+    ["--title", "title"], ["-t", "title"],
+    ["--body", "body"], ["-b", "body"],
+    ["--repo", "repository"], ["-R", "repository"],
+  ]);
+  const args = invocation.words.slice(3);
+  for (let index = 0; index < args.length; index += 2) {
+    const name = names.get(args[index]);
+    const value = args[index + 1];
+    if (!name || typeof value !== "string" || !value || values.has(name)) return undefined;
+    values.set(name, value);
+  }
+  if (
+    values.size !== 5
+    || values.get("head") !== currentBranch
+    || !isSafeRefName(values.get("base"))
+    || values.get("base") === currentBranch
+    || typeof values.get("title") !== "string"
+    || values.get("title").trim().length === 0
+    || hasUnsafeShellExpansion(values.get("title"))
+    || typeof values.get("body") !== "string"
+    || values.get("body").trim().length === 0
+    || values.get("body").length > 10_000
+    || hasUnsafeShellExpansion(values.get("body"))
+    || !isExplicitRepository(values.get("repository"))
+  ) return undefined;
+  return {
+    repository: values.get("repository"),
+    base: values.get("base"),
+    head: values.get("head"),
+    title: values.get("title"),
+    body: values.get("body"),
+  };
+}
+
+export function isStandingAuthorizedPullRequestCreate(command, currentBranch) {
+  return parseStandingAuthorizedPullRequestCreate(command, currentBranch) !== undefined;
+}
+
 function unwrapCommand(words) {
   let index = 0;
   while (index < words.length && SHELL_ASSIGNMENT.test(words[index])) index += 1;
@@ -182,6 +319,13 @@ export function findGitMutations(command, depth = 0) {
     }
     if (executable === "eval" && words[index + 1]) {
       mutations.push(...findGitMutations(words.slice(index + 1).join(" "), depth + 1));
+      continue;
+    }
+    if (executable === "gh") {
+      const ghArgs = words.slice(index + 1).map((word) => word.toLowerCase());
+      if (ghArgs.some((word, position) => word === "pr" && ghArgs[position + 1] === "create")) {
+        mutations.push({ kind: "remote", action: "pr-create" });
+      }
       continue;
     }
     if (executable !== "git") continue;

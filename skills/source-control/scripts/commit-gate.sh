@@ -39,11 +39,15 @@ done
 [[ $message_count -gt 0 ]] || { printf 'at least one commit message is required\n' >&2; exit 2; }
 
 git rev-parse --is-inside-work-tree >/dev/null
-branch="$(git branch --show-current)"
+branch="$(git symbolic-ref --quiet --short HEAD)" || { printf 'refusing commit on detached HEAD\n' >&2; exit 1; }
 [[ -n "$branch" ]] || { printf 'refusing commit on detached HEAD\n' >&2; exit 1; }
+git show-ref --verify --quiet "refs/heads/$branch" || {
+  printf 'refusing commit on unborn branch: %s\n' "$branch" >&2
+  exit 1
+}
 
 case "$branch" in
-  main|master)
+  dev|main|master)
     [[ "$allowed_branch" == "$branch" ]] || {
       printf 'refusing commit on protected branch: %s\n' "$branch" >&2
       exit 1

@@ -15,7 +15,7 @@ Execution constraints:
 - After the final edit run: <commands>.
 - Build a redacted review artifact and route: <review agents>. Verify every Critical/Major against source and executable evidence where practical, fix verified blockers, then rerun affected checks.
 - Do not treat /score as review evidence. Completion requires green final checks, no unresolved Critical/Major, and acceptance evidence.
-- Do not commit, push, open or modify a PR or issue, deploy, publish, or merge unless separately authorized for that exact side effect.
+- On an existing branch other than dev, main, or master, the completed coherent change may be committed through the source-control gate, pushed only to its exact same-name remote branch, and opened as one PR under the standing delivery authorization. Do not create or switch branches, commit or push a primary branch, force-push, mutate tags, delete refs, modify/close/merge a PR, modify an issue, deploy, publish, or merge unless separately authorized for that exact side effect.
 - Stop and present options when a checkpoint or the declared budget is reached.
 ```
 

@@ -9,7 +9,7 @@ Run the delivery loop as the parent session. This skill coordinates work; it doe
 
 ## Authorization boundary
 
-Starting this workflow authorizes only the source edits and local verification needed for the stated goal. It does not authorize a commit, push, branch change, PR creation, publication, deployment, review submission, or merge. Obtain each missing authorization separately.
+Starting this workflow authorizes the source edits and local verification needed for the stated goal. When already on a branch other than `dev`, `main`, or `master`, it also carries standing authorization to commit the coherent completed change through the source-control gate, push only that exact same-name branch without force or extra refspecs, and open one PR with explicit repository, base, head, title, and bounded inline body. It does not authorize creating or switching branches, primary-branch commits or pushes, force-push, tag mutation, ref deletion, PR update/close/merge, publication, deployment, review submission outside its dedicated workflow, or merge. Obtain each missing authorization separately.
 
 Do not use raw pi-subagents RPC for protected Pi Forge agents. Launch them through the normal `subagent` tool so `extensions/agent-policy.ts` can preflight the request.
 
@@ -50,7 +50,7 @@ A writer brief must include:
 - exact file scope and declared exclusions;
 - verified code context and locked decisions;
 - required test commands;
-- prohibition on commits and pushes unless separately authorized.
+- source-control delivery owner: normally the parent; the writer must not commit, push, or open a PR unless the brief explicitly assigns the standing-authorized non-primary delivery to it.
 
 When delegating to `pi-forge.software-engineer`, use exactly one direct writer per subagent call. Set `async: false` explicitly, use the package-qualified identity, and select an explicit canonical provider/model locally; repository defaults must never choose the writer provider. Do not pass a separate thinking override. Do not override its skills, tools, output, acceptance, or session destination. Prefer the current parent model when it is suitable. Before launching the writer on a provider different from the current parent, disclose the exact model, that forked conversation and project instructions plus source read during implementation may be transmitted, and the implementation purpose; obtain explicit consent. Treat the writer report as a claim until the parent inspects the diff and reruns relevant checks.
 
