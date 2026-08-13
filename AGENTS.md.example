@@ -27,8 +27,9 @@
 ## Git
 
 - Never bypass hooks.
-- Never commit directly on main or master without explicit authorization.
-- Never push without explicit authorization.
+- Never commit directly on dev, main, or master without explicit authorization.
+- On other branches, coherent task commits, an exact same-name branch push, and opening one PR are standing-authorized after fresh verification.
+- Never force-push, mutate tags, delete refs, merge, switch or create branches, or modify/close/merge a PR without explicit authorization.
 - Stage explicit files and use Conventional Commits.
 - Use the Pi Forge source-control gate for commits; direct Bash-tool commits are unsupported.
 

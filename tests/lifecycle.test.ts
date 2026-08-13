@@ -10,7 +10,10 @@ import lifecycleExtension from "../extensions/lifecycle.ts";
 import {
   dangerousCommandReason,
   findGitMutations,
+  isPrimaryBranch,
   isSourcePath,
+  isStandingAuthorizedBranchPush,
+  isStandingAuthorizedPullRequestCreate,
   isVerificationCommand,
   sensitivePathReason,
 } from "../src/lifecycle-policy.js";
@@ -57,6 +60,8 @@ test("Git command classification catches common wrappers without matching quoted
   ]) assert.deepEqual(findGitMutations(command).map((item) => item.kind), ["commit"], command);
 
   assert.deepEqual(findGitMutations("git push origin HEAD").map((item) => item.kind), ["remote"]);
+  assert.deepEqual(findGitMutations("gh pr create --repo owner/repo --base main --head feat/x --title x --body body").map((item) => item.action), ["pr-create"]);
+  assert.deepEqual(findGitMutations("gh -R owner/repo pr create --base main --head feat/x --title x --body body").map((item) => item.action), ["pr-create"]);
   assert.deepEqual(findGitMutations("git reset --hard HEAD").map((item) => item.kind), ["destructive"]);
   for (const command of [
     "git branch --delete topic",
@@ -83,14 +88,28 @@ test("sensitive path classification is exact enough for credentials and Git cont
   assert.equal(sensitivePathReason("/repo/src/config.ts", homedir()), undefined);
 });
 
-function harness(options: { confirm?: boolean; cwd?: string } = {}) {
+function harness(options: { confirm?: boolean; cwd?: string; branch?: string; existingBranch?: boolean; cleanWorktree?: boolean } = {}) {
   const handlers = new Map<string, (...args: any[]) => any>();
   const entries: Array<{ type: string; data: any }> = [];
   const messages: any[] = [];
+  const branch = options.branch ?? "feat/test";
   lifecycleExtension({
     on(name: string, handler: (...args: any[]) => any) { handlers.set(name, handler); },
     appendEntry(type: string, data: any) { entries.push({ type, data }); },
     sendMessage(message: any, sendOptions: any) { messages.push({ message, sendOptions }); },
+    exec(command: string, args: string[]) {
+      assert.equal(command, "git");
+      if (args[0] === "symbolic-ref") {
+        assert.deepEqual(args, ["symbolic-ref", "--quiet", "--short", "HEAD"]);
+        return { stdout: `${branch}\n`, stderr: "", code: branch ? 0 : 1, killed: false };
+      }
+      if (args[0] === "show-ref") {
+        assert.deepEqual(args, ["show-ref", "--verify", "--quiet", `refs/heads/${branch}`]);
+        return { stdout: "", stderr: "", code: options.existingBranch === false ? 1 : 0, killed: false };
+      }
+      assert.deepEqual(args, ["status", "--porcelain=v1", "--untracked-files=all"]);
+      return { stdout: options.cleanWorktree === false ? " M src/index.ts\n" : "", stderr: "", code: 0, killed: false };
+    },
   } as any);
   const context = {
     cwd: options.cwd ?? "/tmp/pi-forge-lifecycle",
@@ -102,7 +121,43 @@ function harness(options: { confirm?: boolean; cwd?: string } = {}) {
   return { handlers, entries, messages, context };
 }
 
-test("lifecycle blocks direct commits and confirms remote or destructive mutations", async () => {
+test("standing authorization accepts only exact non-primary push and PR-create forms", async () => {
+  assert.equal(isPrimaryBranch("dev"), true);
+  assert.equal(isPrimaryBranch("main"), true);
+  assert.equal(isPrimaryBranch("master"), true);
+  assert.equal(isPrimaryBranch("feat/test"), false);
+
+  const push = "git -c push.followTags=false -c push.gpgSign=false -c push.pushOption= -c push.recurseSubmodules=no -c push.useForceIfIncludes=false push -u origin refs/heads/feat/test:refs/heads/feat/test";
+  assert.equal(isStandingAuthorizedBranchPush(push, "feat/test"), true);
+  for (const command of [
+    "git push origin HEAD",
+    "git push origin refs/heads/feat/test:refs/heads/feat/test",
+    "git -C ../other push origin refs/heads/feat/test:refs/heads/feat/test",
+    "git -c push.followTags=true -c push.gpgSign=false -c push.pushOption= -c push.recurseSubmodules=no -c push.useForceIfIncludes=false push origin refs/heads/feat/test:refs/heads/feat/test",
+    "git push --force origin refs/heads/feat/test:refs/heads/feat/test",
+    "git push origin refs/heads/feat/test:refs/heads/other",
+    "git push origin refs/tags/v1:refs/tags/v1",
+    `${push} && echo sent`,
+  ]) assert.equal(isStandingAuthorizedBranchPush(command, "feat/test"), false, command);
+  assert.equal(isStandingAuthorizedBranchPush(push, "main"), false);
+
+  const pr = "gh pr create --repo owner/repo --base main --head feat/test --title change --body summary";
+  assert.equal(isStandingAuthorizedPullRequestCreate(pr, "feat/test"), true);
+  for (const command of [
+    "gh pr create --base main --head feat/test --title change --body summary",
+    "gh pr create --repo owner/repo --base main --title change --body summary",
+    "gh pr create --repo owner/repo --base main --head other --title change --body summary",
+    "gh pr create --repo owner/repo --base main --head feat/test --title change --body '$USER'",
+    "gh pr create --repo owner/repo --base main --head feat/test --title '$USER' --body summary",
+    "gh pr create --repo owner/repo --base main --head feat/test --title change --body-file /tmp/private",
+    "gh pr create --repo owner/repo --base main --head feat/test --title change --body summary --draft",
+    "gh -R owner/other pr create --base main --head feat/test --title change --body summary",
+    `${pr} && gh pr merge`,
+  ]) assert.equal(isStandingAuthorizedPullRequestCreate(command, "feat/test"), false, command);
+  assert.equal(isStandingAuthorizedPullRequestCreate(pr, "dev"), false);
+});
+
+test("lifecycle blocks direct commits and gates remote or destructive mutations", async () => {
   const headless = harness();
   const call = headless.handlers.get("tool_call")!;
   assert.match((await call({ toolName: "bash", input: { command: "git commit -m x" } }, headless.context)).reason, /commit-gate\.sh/);
@@ -110,8 +165,39 @@ test("lifecycle blocks direct commits and confirms remote or destructive mutatio
     toolName: "bash",
     input: { command: "skills/source-control/scripts/commit-gate.sh -- --message 'feat: x'" },
   }, headless.context), undefined);
+  assert.equal(await call({
+    toolName: "bash",
+    input: { command: "git -c push.followTags=false -c push.gpgSign=false -c push.pushOption= -c push.recurseSubmodules=no -c push.useForceIfIncludes=false push -u origin refs/heads/feat/test:refs/heads/feat/test" },
+  }, headless.context), undefined);
+  assert.equal(await call({
+    toolName: "bash",
+    input: { command: "gh pr create --repo owner/repo --base main --head feat/test --title change --body summary" },
+  }, headless.context), undefined);
   assert.match((await call({ toolName: "bash", input: { command: "git push origin HEAD" } }, headless.context)).reason, /interactive confirmation/);
   assert.match((await call({ toolName: "bash", input: { command: "git reset --hard HEAD" } }, headless.context)).reason, /interactive confirmation/);
+
+  assert.match((await call({
+    toolName: "bash",
+    input: { command: `gh pr create --repo owner/repo --base main --head feat/test --title change --body-file ${homedir()}/.ssh/id_rsa` },
+  }, headless.context)).reason, /interactive confirmation/);
+
+  const unborn = harness({ existingBranch: false });
+  assert.match((await unborn.handlers.get("tool_call")!({
+    toolName: "bash",
+    input: { command: "gh pr create --repo owner/repo --base main --head feat/test --title change --body summary" },
+  }, unborn.context)).reason, /interactive confirmation/);
+
+  const dirty = harness({ cleanWorktree: false });
+  assert.match((await dirty.handlers.get("tool_call")!({
+    toolName: "bash",
+    input: { command: "gh pr create --repo owner/repo --base main --head feat/test --title change --body summary" },
+  }, dirty.context)).reason, /interactive confirmation/);
+
+  const primary = harness({ branch: "main" });
+  assert.match((await primary.handlers.get("tool_call")!({
+    toolName: "bash",
+    input: { command: "git push origin refs/heads/main:refs/heads/main" },
+  }, primary.context)).reason, /interactive confirmation/);
 
   const approved = harness({ confirm: true });
   assert.equal(await approved.handlers.get("tool_call")!({

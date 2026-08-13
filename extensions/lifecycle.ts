@@ -2,13 +2,15 @@
 // ABOUTME: Uses exact tool events and one bounded follow-up without treating prose as computational evidence.
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { existsSync, realpathSync } from "node:fs";
+import { realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import {
   dangerousCommandReason,
   findGitMutations,
   isSourcePath,
+  isStandingAuthorizedBranchPush,
+  parseStandingAuthorizedPullRequestCreate,
   isVerificationCommand,
   sensitivePathReason,
 } from "../src/lifecycle-policy.js";
@@ -65,17 +67,21 @@ function restoreState(entries: readonly unknown[]): LifecycleState {
 function canonicalPath(rawPath: string, cwd: string): string {
   const cleaned = rawPath.startsWith("@") ? rawPath.slice(1) : rawPath;
   const absolute = isAbsolute(cleaned) ? resolve(cleaned) : resolve(cwd, cleaned);
-  if (existsSync(absolute)) return realpathSync(absolute);
+  try {
+    return realpathSync(absolute);
+  } catch {}
 
   const suffix: string[] = [];
   let current = absolute;
-  while (!existsSync(current)) {
+  while (true) {
+    try {
+      return join(realpathSync(current), ...suffix);
+    } catch {}
     const parent = dirname(current);
     if (parent === current) return absolute;
     suffix.unshift(relative(parent, current));
     current = parent;
   }
-  return join(realpathSync(current), ...suffix);
 }
 
 function containsWriter(value: unknown): boolean {
@@ -166,6 +172,39 @@ export default function lifecycleExtension(pi: ExtensionAPI): void {
 
     const remoteActions = [...new Set(mutations.filter((mutation) => mutation.kind === "remote").map((mutation) => mutation.action))];
     if (remoteActions.length > 0) {
+      let currentBranch = "";
+      let existingLocalBranch = false;
+      let cleanWorktree = false;
+      try {
+        const branchResult = await pi.exec("git", ["symbolic-ref", "--quiet", "--short", "HEAD"], { cwd: ctx.cwd, timeout: 5_000 });
+        currentBranch = branchResult.code === 0 ? branchResult.stdout.trim() : "";
+        if (currentBranch) {
+          const refResult = await pi.exec(
+            "git",
+            ["show-ref", "--verify", "--quiet", `refs/heads/${currentBranch}`],
+            { cwd: ctx.cwd, timeout: 5_000 },
+          );
+          existingLocalBranch = refResult.code === 0;
+          const statusResult = await pi.exec(
+            "git",
+            ["status", "--porcelain=v1", "--untracked-files=all"],
+            { cwd: ctx.cwd, timeout: 5_000 },
+          );
+          cleanWorktree = statusResult.code === 0 && statusResult.stdout.length === 0;
+        }
+      } catch {
+        currentBranch = "";
+        existingLocalBranch = false;
+        cleanWorktree = false;
+      }
+      const prCreate = remoteActions[0] === "pr-create"
+        ? parseStandingAuthorizedPullRequestCreate(command, currentBranch)
+        : undefined;
+      const standingAuthorized = existingLocalBranch && cleanWorktree && remoteActions.length === 1 && (
+        remoteActions[0] === "push" && isStandingAuthorizedBranchPush(command, currentBranch)
+        || remoteActions[0] === "pr-create" && prCreate !== undefined
+      );
+      if (standingAuthorized) return;
       return confirmRisk(
         ctx,
         "Remote Git mutation",

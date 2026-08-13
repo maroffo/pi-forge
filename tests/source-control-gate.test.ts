@@ -1,5 +1,5 @@
 // ABOUTME: Exercises the source-control commit gate in disposable Git repositories.
-// ABOUTME: Proves protected-branch refusal, normal commits, and unsafe-argument rejection.
+// ABOUTME: Proves all primary-branch refusals, normal commits, and unsafe-argument rejection.
 
 import assert from "node:assert/strict";
 import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -22,19 +22,39 @@ function git(cwd: string, ...args: string[]) {
   return result.stdout.trim();
 }
 
-test("commit gate refuses protected branches and unsafe commit modes", () => {
+test("commit gate refuses primary branches and unsafe commit modes", () => {
   const repository = mkdtempSync(join(tmpdir(), "pi-forge-commit-gate-"));
   try {
     git(repository, "init", "-b", "main");
     git(repository, "config", "user.name", "Pi Forge Test");
     git(repository, "config", "user.email", "pi-forge@example.invalid");
+    writeFileSync(join(repository, "initial.txt"), "initial\n");
+    git(repository, "add", "initial.txt");
+    git(repository, "commit", "-m", "test: initial commit");
     writeFileSync(join(repository, "change.txt"), "first\n");
     git(repository, "add", "change.txt");
 
-    const protectedAttempt = run(repository, "bash", [GATE, "--", "-m", "test: blocked on main"]);
-    assert.equal(protectedAttempt.status, 1);
-    assert.match(protectedAttempt.stderr, /protected branch: main/);
-    assert.equal(git(repository, "diff", "--cached", "--name-only"), "change.txt");
+    for (const branch of ["main", "dev", "master"]) {
+      if (branch !== "main") git(repository, "switch", "-c", branch);
+      const protectedAttempt = run(repository, "bash", [GATE, "--", "-m", `test: blocked on ${branch}`]);
+      assert.equal(protectedAttempt.status, 1);
+      assert.match(protectedAttempt.stderr, new RegExp(`protected branch: ${branch}`));
+      assert.equal(git(repository, "diff", "--cached", "--name-only"), "change.txt");
+    }
+
+    const unborn = mkdtempSync(join(tmpdir(), "pi-forge-commit-gate-unborn-"));
+    try {
+      git(unborn, "init", "-b", "feat/unborn");
+      git(unborn, "config", "user.name", "Pi Forge Test");
+      git(unborn, "config", "user.email", "pi-forge@example.invalid");
+      writeFileSync(join(unborn, "first.txt"), "first\n");
+      git(unborn, "add", "first.txt");
+      const unbornAttempt = run(unborn, "bash", [GATE, "--", "-m", "test: refuse branch creation"]);
+      assert.equal(unbornAttempt.status, 1);
+      assert.match(unbornAttempt.stderr, /unborn branch: feat\/unborn/);
+    } finally {
+      rmSync(unborn, { recursive: true, force: true });
+    }
 
     git(repository, "switch", "-c", "test/commit-gate");
     const commit = run(repository, "bash", [GATE, "--", "-m", "test: exercise commit gate"]);
@@ -58,7 +78,7 @@ test("commit gate refuses protected branches and unsafe commit modes", () => {
       const attempt = run(repository, "bash", [GATE, "--", ...arguments_]);
       assert.equal(attempt.status, 2, attempt.stderr || attempt.stdout);
       assert.match(attempt.stderr, /unsupported git commit argument/);
-      assert.equal(git(repository, "rev-list", "--count", "HEAD"), "1");
+      assert.equal(git(repository, "rev-list", "--count", "HEAD"), "2");
       assert.equal(git(repository, "diff", "--cached", "--name-only"), "second.txt");
       assert.equal(git(repository, "diff", "--name-only"), "change.txt");
     }

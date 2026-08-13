@@ -10,7 +10,9 @@ Apply the repository's own working agreement first. This skill adds portable Git
 
 ## Commit contract
 
-Treat an explicit request to commit, including `/commit`, as authorization for one local commit only. It does not authorize pushing, amending an existing commit, changing branches, discarding changes, or bypassing hooks.
+A request to implement or change the repository carries standing authorization to create coherent local commits on the current non-primary branch after fresh verification. `dev`, `main`, and `master` are primary branches and always require explicit commit authorization. This standing authorization does not permit amending, changing branches, discarding changes, bypassing hooks, or committing unrelated work.
+
+On an existing non-primary branch, it also authorizes an ordinary same-name branch push and opening one pull request for that delivered change. Keep both operations narrow: push only `refs/heads/<current>:refs/heads/<current>` to the selected remote, without force, tags, deletion, atomic mode, extra refspecs, or push options, and neutralize inherited push expansion with the exact `-c` settings documented below; create the PR with explicit repository, base, exact current head, title, and inline body. A primary-branch push, force-push, tag mutation, ref deletion, merge, branch creation or switch, PR update/close/merge, and every other remote mutation still require separate explicit authorization.
 
 1. Inspect before mutating:
 
@@ -22,7 +24,7 @@ Treat an explicit request to commit, including `/commit`, as authorization for o
    git log -5 --oneline
    ```
 
-2. Stop before committing on `main` or `master` unless the user explicitly authorized that branch.
+2. Stop before committing on `dev`, `main`, or `master` unless the user explicitly authorized that exact branch.
 3. Separate task-owned changes from unrelated or pre-existing work. Treat an existing index as protected: if any staged content is not clearly part of the requested commit, stop rather than unstage it or include it. Never discard or rewrite unrelated work to obtain a clean tree.
 4. Run the repository checks relevant to the intended commit. A stale result from before the final edit is not evidence.
 5. Stage safely:
@@ -37,8 +39,14 @@ Treat an explicit request to commit, including `/commit`, as authorization for o
    bash <skill-directory>/scripts/commit-gate.sh -- -m "<type>(<scope>): <subject>"
    ```
 
-   The gate refuses a detached head, `main`, `master`, an empty index, hook bypasses such as `--no-verify`, amend, and arguments that implicitly stage content. When the user explicitly authorized committing on `main` or `master`, pass the exact branch as `--allow-branch <authorized-branch>` before `--`. Do not use that option based on inference. Merely printing the branch followed by `&& git commit` is not a gate, and invoking `git commit` directly does not satisfy this workflow.
-8. Report the commit hash, subject, checks run, and remaining unstaged or untracked files. Do not push unless separately authorized.
+   The gate refuses a detached head, `dev`, `main`, `master`, an empty index, hook bypasses such as `--no-verify`, amend, and arguments that implicitly stage content. When the user explicitly authorized committing on one of those primary branches, pass the exact branch as `--allow-branch <authorized-branch>` before `--`. Do not use that option based on inference. Merely printing the branch followed by `&& git commit` is not a gate, and invoking `git commit` directly does not satisfy this workflow.
+8. Report the commit hash, subject, checks run, and remaining unstaged or untracked files. On an existing non-primary branch, proceed with the standing-authorized narrow push when it completes the requested delivery, using exactly:
+
+   ```bash
+   git -c push.followTags=false -c push.gpgSign=false -c push.pushOption= -c push.recurseSubmodules=no -c push.useForceIfIncludes=false push -u <remote> refs/heads/<current>:refs/heads/<current>
+   ```
+
+   Then create one PR only with explicit `--repo <owner/name>`, `--base`, `--head <current>`, `--title`, and a nonempty inline `--body` of at most 10,000 characters. Do not use `--body-file` on the standing-authorized path. The worktree and index must be clean immediately before either remote mutation. Otherwise state why delivery was not applicable. Do not infer authorization for any broader Git or GitHub mutation.
 
 If the staged set is empty, do not create an empty commit unless the user explicitly requested one.
 

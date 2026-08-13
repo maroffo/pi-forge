@@ -6,7 +6,7 @@ compatibility: Issue mode requires the gh CLI and repository access.
 
 # Plan Forge
 
-Produce a falsifiable plan from actual repository evidence. Do not implement the planned code. Writing the requested plan file is authorized; commits, pushes, issue mutations, PR creation, and publication are not.
+Produce a falsifiable plan from actual repository evidence. Do not implement the planned code. Writing the requested plan file is authorized. When the plan itself is the completed requested artifact and the checkout is already on a branch other than `dev`, `main`, or `master`, the normal standing authorization permits a coherent plan commit, exact same-name branch push, and one PR creation. Issue mutations, branch creation or switch, primary-branch delivery, force-push, tag mutation, ref deletion, PR update/close/merge, and publication remain unauthorized without an explicit request.
 
 ## 1. Resolve input
 
@@ -58,7 +58,7 @@ Create parent directories when needed. Never overwrite an unrelated plan; add a 
 - final checks, review routing, budget, risks, and explicit external side effects;
 - living progress, discoveries, decisions, and retrospective sections.
 
-Do not commit the plan unless separately authorized.
+Do not commit the plan when it is only an intermediate artifact or the current branch is primary. When the plan is the completed requested deliverable on an existing non-primary branch, use the source-control skill's standing-authorized commit, narrow push, and PR path after final verification.
 
 ## 5. Emit the implementation handoff
 

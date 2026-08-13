@@ -288,11 +288,11 @@ test("project-checks is a truthful read-only onboarding workflow", async () => {
   assert.doesNotMatch(skill, /git add|git commit|npm install/);
 });
 
-test("source-control defines narrow commit and push authorization", async () => {
+test("source-control defines narrow standing delivery authorization", async () => {
   const skill = await text("skills/source-control/SKILL.md");
 
   assert.match(skill, /name: source-control/);
-  assert.match(skill, /authorization for one local commit only/);
+  assert.match(skill, /standing authorization to create coherent local commits on the current non-primary branch/);
   assert.match(skill, /Treat an existing index as protected/);
   assert.match(skill, /file containing mixed task and unrelated hunks/);
   assert.match(skill, /git apply --cached --check/);
@@ -300,8 +300,14 @@ test("source-control defines narrow commit and push authorization", async () => 
   assert.match(skill, /scripts\/commit-gate\.sh/);
   assert.match(skill, /invoking `git commit` directly does not satisfy this workflow/);
   assert.match(skill, /hook bypasses such as `--no-verify`/);
-  assert.match(skill, /Do not push unless separately authorized/);
-  assert.match(skill, /main` or `master`/);
+  assert.match(skill, /ordinary same-name branch push and opening one pull request/);
+  assert.match(skill, /push only `refs\/heads\/<current>:refs\/heads\/<current>`/);
+  assert.match(skill, /push\.followTags=false.*push\.gpgSign=false.*push\.pushOption=.*push\.recurseSubmodules=no.*push\.useForceIfIncludes=false/s);
+  assert.match(skill, /explicit `--repo <owner\/name>`.*nonempty inline `--body` of at most 10,000 characters/s);
+  assert.match(skill, /Do not use `--body-file`/);
+  assert.match(skill, /worktree and index must be clean/);
+  assert.match(skill, /force-push, tag mutation, ref deletion, merge, branch creation or switch/);
+  assert.match(skill, /`dev`, `main`, or `master`/);
   assert.doesNotMatch(skill, /\bMax\b|Development\/private|make check/);
 });
 
@@ -311,7 +317,7 @@ test("commit prompt is a thin source-control alias", async () => {
   assert.match(prompt, /Load and follow the `source-control` skill/);
   assert.match(prompt, /Create exactly one local commit/);
   assert.match(prompt, /\$\{ARGUMENTS:-/);
-  assert.match(prompt, /does not authorize a push/);
+  assert.match(prompt, /standing authorization for the source-control skill's exact same-name branch push and one PR creation/);
   assert.match(prompt, /never stage a whole mixed file/);
   assert.match(prompt, /scripts\/commit-gate\.sh/);
   assert.match(prompt, /Never invoke `git commit` directly/);
@@ -348,6 +354,7 @@ test("software-engineer is the sole scoped writer and loads the shared contract"
   assert.match(agent, /Do not launch subagents/);
   assert.match(contract, /disable-model-invocation: true/);
   assert.match(contract, /sole writer/);
-  assert.match(contract, /Do not commit or push unless the task explicitly authorizes it/);
+  assert.match(contract, /coherent task commit is standing-authorized on a branch other than `dev`, `main`, or `master`/);
+  assert.match(contract, /exact same-name ordinary branch push and opening one PR are likewise standing-authorized/);
   assert.match(contract, /A stale, failed, or pre-edit result is not evidence/);
 });

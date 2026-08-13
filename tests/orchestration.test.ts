@@ -24,7 +24,10 @@ test("orchestrator keeps one writer and protected artifact-only review", async (
   const routing = await text("skills/orchestrator/references/review-routing.md");
 
   assert.match(skill, /name: orchestrator/);
-  assert.match(skill, /does not authorize a commit, push, branch change, PR creation/);
+  assert.match(skill, /standing authorization to commit the coherent completed change through the source-control gate/);
+  assert.match(skill, /push only that exact same-name branch/);
+  assert.match(skill, /open one PR with explicit repository, base, head, title, and bounded inline body/);
+  assert.match(skill, /does not authorize creating or switching branches, primary-branch commits or pushes, force-push/);
   assert.match(skill, /Do not use raw pi-subagents RPC/);
   assert.match(skill, /Keep one writer per checkout/);
   assert.match(skill, /pi-forge\.software-engineer/);
@@ -312,7 +315,7 @@ test("plan-forge writes a self-contained plan without implicit implementation or
   assert.match(skill, /If it is still active, return control instead of polling/);
   assert.match(skill, /Never imply that an opinion ran when it did not/);
   assert.match(skill, /Never overwrite an unrelated plan/);
-  assert.match(skill, /Do not commit the plan unless separately authorized/);
+  assert.match(skill, /plan is the completed requested deliverable on an existing non-primary branch/);
   for (const section of [
     "## Locked decisions",
     "## Acceptance criteria",
@@ -324,7 +327,9 @@ test("plan-forge writes a self-contained plan without implicit implementation or
     "## Outcomes and retrospective",
   ]) assert.match(plan, new RegExp(section.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   assert.match(handoff, /\/orchestrator Implement/);
-  assert.match(handoff, /Do not commit, push, open or modify a PR or issue/);
+  assert.match(handoff, /existing branch other than dev, main, or master/);
+  assert.match(handoff, /pushed only to its exact same-name remote branch/);
+  assert.match(handoff, /Do not create or switch branches, commit or push a primary branch, force-push/);
 });
 
 test("pr-review publishes an idempotent COMMENT review and gates candidate execution", async () => {
