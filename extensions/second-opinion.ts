@@ -44,6 +44,9 @@ const PERSISTENT_CONSENT_FILE = "auto-panel-consent.json";
 const PERSISTENT_CONSENT_VERSION = 1;
 const PERSISTENT_PANEL_MAX_ATTEMPTS = 2;
 const PERSISTENT_PANEL_MAX_ACTIVE_PER_SESSION = 1;
+const PERSISTENT_PANEL_MAX_OPERATIONS_PER_SESSION = 3;
+const PERSISTENT_PANEL_MAX_DISCLOSED_CHARS_PER_SESSION = 400_000;
+const PERSISTENT_PANEL_USAGE_ENTRY = "pi-forge.auto-panel-usage.v1";
 const PANEL_OPERATION_RETENTION = 20;
 const PANEL_EXPIRED_OPERATION_RETENTION = 100;
 const PANEL_OPERATION_WAKE_EVENT = "pi-forge:auto-panel-work-changed";
@@ -132,8 +135,14 @@ type AutomaticPreparedBrief = PreparedBrief & {
 
 type AutomaticPanelState = "disabled" | "enabled" | "consumed";
 type AutomaticAuthorizationMode = "session" | "persistent";
+type PersistentSessionUsage = {
+  version: 1;
+  sessionId: string;
+  operationsStarted: number;
+  activeOperations: number;
+  disclosedChars: number;
+};
 type SocraticRecommendationReceipt = {
-  toolCallId: string;
   digest: string;
 };
 type DisclosureMode = "interactive" | "session-consent" | "persistent-consent";
@@ -204,6 +213,7 @@ const AUTOMATIC_PANEL_DENY_PATTERNS = Object.freeze([
     pattern: /\b(?:api[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret|password|private[_-]?key|secret|token)\b\s*[:=]\s*["']?[^\s"']{8,}/iu,
   },
   { label: "provider-token shape", pattern: /\b(?:AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{20,}|sk-[A-Za-z0-9_-]{20,})\b/u },
+  { label: "authorization credential", pattern: /\bauthorization\s*:\s*(?:basic|bearer)\s+[A-Za-z0-9._~+/-]{8,}={0,2}(?=\s|$)/iu },
   { label: "personal-email shape", pattern: /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/iu },
   { label: "private absolute path", pattern: /(?:\/Users\/[^\s/]+|\/home\/[^\s/]+|[A-Za-z]:\\Users\\[^\s\\]+)/u },
 ]);
@@ -217,16 +227,21 @@ export function automaticPanelPayloadRejection(target: string): string | undefin
   return undefined;
 }
 
-export function persistentAutoPanelConsentContractSha256(): string {
-  return createHash("sha256").update(JSON.stringify({
+export function persistentAutoPanelConsentContract() {
+  return {
     version: PERSISTENT_CONSENT_VERSION,
     scope: "trusted-projects",
     chainSha256: SECOND_OPINION_CHAIN_SHA256,
     piSubagentsVersion: PI_SUBAGENTS_VERSION,
-    opinionModels: OPINION_MODELS,
+    opinionModels: [...OPINION_MODELS],
     synthesizerModel: SYNTHESIZER_MODEL,
+    maxPayloadChars: MAX_TARGET_CHARS,
     maxAttemptsPerOperation: PERSISTENT_PANEL_MAX_ATTEMPTS,
     maxActiveOperationsPerSession: PERSISTENT_PANEL_MAX_ACTIVE_PER_SESSION,
+    maxOperationsPerSession: PERSISTENT_PANEL_MAX_OPERATIONS_PER_SESSION,
+    maxDisclosedCharsPerSession: PERSISTENT_PANEL_MAX_DISCLOSED_CHARS_PER_SESSION,
+    sessionUsageVersion: 1,
+    sessionUsageEntry: PERSISTENT_PANEL_USAGE_ENTRY,
     retryPolicy: "one replacement only after a lifecycle-v3 failed result with structured children",
     unknownLaunchPolicy: "block persistent consent until interactive re-enrollment",
     denyPatterns: AUTOMATIC_PANEL_DENY_PATTERNS.map(({ label, pattern }) => ({
@@ -234,7 +249,39 @@ export function persistentAutoPanelConsentContractSha256(): string {
       source: pattern.source,
       flags: pattern.flags,
     })),
-  })).digest("hex");
+  };
+}
+
+export function persistentAutoPanelConsentContractSha256(
+  contract: unknown = persistentAutoPanelConsentContract(),
+): string {
+  return createHash("sha256").update(JSON.stringify(contract)).digest("hex");
+}
+
+export function persistentPanelBudgetRejection(
+  usage: Pick<PersistentSessionUsage, "operationsStarted" | "activeOperations" | "disclosedChars">,
+  targetChars: number,
+  startsOperation: boolean,
+): { reason: "operation-active" | "operation-limit" | "disclosure-volume-limit"; message: string } | undefined {
+  if (startsOperation && usage.activeOperations >= PERSISTENT_PANEL_MAX_ACTIVE_PER_SESSION) {
+    return {
+      reason: "operation-active",
+      message: "A persistent Expert Panel operation may still be active in this Pi session. Await or inspect the existing operation, or start a new session.",
+    };
+  }
+  if (startsOperation && usage.operationsStarted >= PERSISTENT_PANEL_MAX_OPERATIONS_PER_SESSION) {
+    return {
+      reason: "operation-limit",
+      message: `This Pi session has reached its limit of ${PERSISTENT_PANEL_MAX_OPERATIONS_PER_SESSION} persistent Expert Panel operations. Start a new session or use the manual reviewed path.`,
+    };
+  }
+  if (usage.disclosedChars + targetChars > PERSISTENT_PANEL_MAX_DISCLOSED_CHARS_PER_SESSION) {
+    return {
+      reason: "disclosure-volume-limit",
+      message: `This disclosure would exceed the ${PERSISTENT_PANEL_MAX_DISCLOSED_CHARS_PER_SESSION.toLocaleString()}-character persistent Expert Panel budget for this Pi session. Start a new session or use the manual reviewed path.`,
+    };
+  }
+  return undefined;
 }
 
 function fileErrorCode(error: unknown): string | undefined {
@@ -335,7 +382,7 @@ export function createPersistentAutoPanelConsentStore(
     if (value.contractSha256 !== expected) {
       return {
         status: "stale",
-        message: "Persistent Expert Panel consent does not match the current providers, chain, runtime, scanner, concurrency, or retry contract; enable it again after reviewing the new disclosure.",
+        message: "Persistent Expert Panel consent does not match the current providers, chain, runtime, scanner, concurrency, per-session volume, or retry contract; enable it again after reviewing the new disclosure.",
       };
     }
     if (value.state === "blocked-unknown-launch") {
@@ -874,6 +921,7 @@ async function launchExpertPanel(
   signal?: AbortSignal,
   disclosureMode: DisclosureMode = "interactive",
   persistentConsentStore?: PersistentConsentStore,
+  beforeSpawn?: () => void,
 ): Promise<LaunchOutcome> {
   try {
     const persistentSessionId = disclosureMode === "persistent-consent"
@@ -910,6 +958,7 @@ async function launchExpertPanel(
     if (persistentSessionId) {
       assertPersistentLaunchAuthorization(ctx, persistentConsentStore, persistentSessionId);
     }
+    beforeSpawn?.();
 
     const unknownOutcome = () => new RpcOutcomeUnknownError(
       "Expert-panel launch was emitted but acknowledgement is unavailable. The run may already be active; do not retry until you inspect /subagents-fleet.",
@@ -950,6 +999,65 @@ function launchOutcomeText(outcome: LaunchOutcome): string {
     : "Expert panel launched. Use /subagents-fleet to inspect progress.";
 }
 
+function launchPresentation(
+  outcome: LaunchOutcome,
+  operation?: PanelOperation,
+  awaitInstruction = "use await_expert_panel to collect the final synthesis",
+) {
+  if (outcome.status === "launched" && !operation) {
+    return {
+      status: "launched-uncorrelated" as const,
+      text: `${launchOutcomeText(outcome)} The run is active but this Pi session could not create a correlated operation handle. Inspect /subagents-fleet; do not reconvene the panel as recovery.`,
+      uncorrelated: true,
+    };
+  }
+  return {
+    status: outcome.status,
+    text: `${launchOutcomeText(outcome)}${operation ? ` Operation: ${operation.id}; ${awaitInstruction}.` : ""}`,
+    uncorrelated: false,
+  };
+}
+
+function emptyPersistentSessionUsage(sessionId: string): PersistentSessionUsage {
+  return { version: 1, sessionId, operationsStarted: 0, activeOperations: 0, disclosedChars: 0 };
+}
+
+function parsePersistentSessionUsage(value: unknown): PersistentSessionUsage | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const candidate = value as Record<string, unknown>;
+  if (
+    candidate.version !== 1
+    || typeof candidate.sessionId !== "string"
+    || !candidate.sessionId
+    || !Number.isSafeInteger(candidate.operationsStarted)
+    || Number(candidate.operationsStarted) < 0
+    || !Number.isSafeInteger(candidate.activeOperations)
+    || Number(candidate.activeOperations) < 0
+    || Number(candidate.activeOperations) > PERSISTENT_PANEL_MAX_ACTIVE_PER_SESSION
+    || !Number.isSafeInteger(candidate.disclosedChars)
+    || Number(candidate.disclosedChars) < 0
+  ) return undefined;
+  return {
+    version: 1,
+    sessionId: candidate.sessionId,
+    operationsStarted: Number(candidate.operationsStarted),
+    activeOperations: Number(candidate.activeOperations),
+    disclosedChars: Number(candidate.disclosedChars),
+  };
+}
+
+function restorePersistentSessionUsage(entries: readonly unknown[], sessionId: string): PersistentSessionUsage {
+  let restored = emptyPersistentSessionUsage(sessionId);
+  for (const entry of entries) {
+    if (!entry || typeof entry !== "object") continue;
+    const candidate = entry as { type?: unknown; customType?: unknown; data?: unknown };
+    if (candidate.type !== "custom" || candidate.customType !== PERSISTENT_PANEL_USAGE_ENTRY) continue;
+    const parsed = parsePersistentSessionUsage(candidate.data);
+    if (parsed?.sessionId === sessionId) restored = parsed;
+  }
+  return restored;
+}
+
 export default function secondOpinionExtension(
   pi: ExtensionAPI,
   dependencies: ExtensionDependencies = DEFAULT_DEPENDENCIES,
@@ -967,6 +1075,7 @@ export default function secondOpinionExtension(
   let automaticPanelState: AutomaticPanelState = "disabled";
   let socraticRecommendationReceipt: SocraticRecommendationReceipt | undefined;
   let activeSessionId = "";
+  let persistentSessionUsage = emptyPersistentSessionUsage("");
 
   const sessionIdFromContext = (ctx: ExtensionContext): string | undefined => {
     try {
@@ -982,6 +1091,52 @@ export default function secondOpinionExtension(
     } catch {
       return false;
     }
+  };
+  const usageForSession = (sessionId: string): PersistentSessionUsage => {
+    if (persistentSessionUsage.sessionId !== sessionId) {
+      persistentSessionUsage = emptyPersistentSessionUsage(sessionId);
+    }
+    return persistentSessionUsage;
+  };
+  const persistentBudgetRejection = (
+    sessionId: string,
+    targetChars: number,
+    startsOperation: boolean,
+  ) => persistentPanelBudgetRejection(usageForSession(sessionId), targetChars, startsOperation);
+  const consumePersistentBudget = (sessionId: string, targetChars: number, startsOperation: boolean) => {
+    const rejection = persistentBudgetRejection(sessionId, targetChars, startsOperation);
+    if (rejection) throw new Error(rejection.message);
+    const usage = usageForSession(sessionId);
+    const next: PersistentSessionUsage = {
+      version: 1,
+      sessionId,
+      operationsStarted: usage.operationsStarted + (startsOperation ? 1 : 0),
+      activeOperations: usage.activeOperations + (startsOperation ? 1 : 0),
+      disclosedChars: usage.disclosedChars + targetChars,
+    };
+    pi.appendEntry(PERSISTENT_PANEL_USAGE_ENTRY, next);
+    persistentSessionUsage = next;
+  };
+  const releasePersistentOperation = (sessionId: string) => {
+    const usage = usageForSession(sessionId);
+    if (usage.activeOperations === 0) return;
+    const next: PersistentSessionUsage = {
+      ...usage,
+      activeOperations: usage.activeOperations - 1,
+    };
+    try {
+      pi.appendEntry(PERSISTENT_PANEL_USAGE_ENTRY, next);
+      persistentSessionUsage = next;
+    } catch {
+      // Keep the in-memory active reservation fail-closed if checkpointing settlement fails.
+    }
+  };
+  const clearReconciledPersistentOperation = (sessionId: string) => {
+    const usage = usageForSession(sessionId);
+    if (usage.activeOperations === 0) return;
+    const next: PersistentSessionUsage = { ...usage, activeOperations: 0 };
+    pi.appendEntry(PERSISTENT_PANEL_USAGE_ENTRY, next);
+    persistentSessionUsage = next;
   };
   const emitOperationWake = () => {
     try {
@@ -1025,6 +1180,9 @@ export default function secondOpinionExtension(
   };
   const settleOperation = (operation: PanelOperation, completion: PanelCompletion) => {
     operationByRunId.delete(operation.currentRunId);
+    if (operation.authorizationMode === "persistent" && completion.status !== "unknown") {
+      releasePersistentOperation(operation.sessionId);
+    }
     operation.state = "settled";
     operation.completion = completion;
     operation.completedAt = Date.now();
@@ -1107,6 +1265,17 @@ export default function secondOpinionExtension(
       sendAutomationMessage(`Expert Panel operation ${operation.id} cannot retry after its owning Pi session changed.`, true);
       return;
     }
+    const budgetRejection = persistentBudgetRejection(operation.sessionId, target.length, false);
+    if (budgetRejection) {
+      settleOperation(operation, {
+        status: "failed",
+        runId: firstFailure.runId,
+        attempts: operation.attempt,
+        summary: `${firstFailure.summary}\n\nAutomatic retry was not launched because ${budgetRejection.message}`,
+      });
+      sendAutomationMessage(`Expert Panel operation ${operation.id} reached the persistent session disclosure budget; no retry was launched.`, true);
+      return;
+    }
 
     operation.attempt += 1;
     operation.state = "retrying";
@@ -1124,8 +1293,20 @@ export default function secondOpinionExtension(
         undefined,
         "persistent-consent",
         persistentConsentStore,
+        () => consumePersistentBudget(operation.sessionId, target.length, false),
       );
       if (outcome.status === "launched" && outcome.runId) {
+        if (outcome.runId === firstFailure.runId || operationByRunId.has(outcome.runId)) {
+          const blocked = blockPersistentConsentAfterUnknownLaunch();
+          settleOperation(operation, {
+            status: "unknown",
+            runId: outcome.runId,
+            attempts: operation.attempt,
+            summary: `${firstFailure.summary}\n\nThe replacement launch reused an existing run identity and could not be correlated safely.${blocked}`,
+          });
+          sendAutomationMessage(`Expert Panel operation ${operation.id} launched an uncorrelated replacement. Inspect the owning fleet; no further retry is allowed.`, true);
+          return;
+        }
         operation.currentRunId = outcome.runId;
         operation.state = "running";
         operationByRunId.set(outcome.runId, operation);
@@ -1222,8 +1403,11 @@ export default function secondOpinionExtension(
       .filter((operation) => operation.state !== "settled")
       .map((operation) => ({ id: operation.id, sessionId: operation.sessionId })),
   });
-  pi.events.on(PANEL_COMPLETION_EVENT, handlePanelCompletion);
-  pi.on("session_shutdown", () => disposeProvider());
+  const disposeCompletionListener = pi.events.on(PANEL_COMPLETION_EVENT, handlePanelCompletion);
+  pi.on("session_shutdown", () => {
+    disposeCompletionListener();
+    disposeProvider();
+  });
   pi.on("session_start", (_event, ctx) => {
     const nextSessionId = sessionIdFromContext(ctx) ?? "";
     if (activeSessionId && nextSessionId !== activeSessionId) {
@@ -1241,6 +1425,11 @@ export default function secondOpinionExtension(
       }
     }
     activeSessionId = nextSessionId;
+    let branchEntries: readonly unknown[] = [];
+    try {
+      branchEntries = ctx.sessionManager.getBranch();
+    } catch {}
+    persistentSessionUsage = restorePersistentSessionUsage(branchEntries, nextSessionId);
     automaticPanelState = "disabled";
     socraticRecommendationReceipt = undefined;
   });
@@ -1258,7 +1447,6 @@ export default function secondOpinionExtension(
     if (event.isError === true || !isCompleteSocraticRecommendation(event.content)) return;
     const resultText = textFromContent(event.content);
     socraticRecommendationReceipt = {
-      toolCallId: event.toolCallId,
       digest: createHash("sha256")
         .update(String(event.input.task))
         .update("\0")
@@ -1280,13 +1468,11 @@ export default function secondOpinionExtension(
         ? await launchExpertPanel(pi, dependencies, definition, target, ctx, signal)
         : { status: "cancelled" } as const;
       const operation = target ? trackOperation(outcome, target, ctx, "manual", 1) : undefined;
+      const presentation = launchPresentation(outcome, operation);
       return {
-        content: [{
-          type: "text",
-          text: `${launchOutcomeText(outcome)}${operation ? ` Operation: ${operation.id}; use await_expert_panel to collect the final synthesis.` : ""}`,
-        }],
+        content: [{ type: "text", text: presentation.text }],
         details: {
-          status: outcome.status,
+          status: presentation.status,
           runId: outcome.status === "launched" ? outcome.runId : undefined,
           operationId: operation?.id,
           targetChars: target?.length ?? 0,
@@ -1303,22 +1489,22 @@ export default function secondOpinionExtension(
     parameters: AUTOMATIC_PREPARED_BRIEF_SCHEMA,
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       const persistentConsent = persistentConsentStore.load();
-      if (persistentLaunchBlockedInMemory || persistentConsent.status === "blocked") {
+      const persistentBlocked = persistentLaunchBlockedInMemory || persistentConsent.status === "blocked";
+      const effectivePersistentStatus = persistentBlocked ? "blocked" : persistentConsent.status;
+      const trustedProject = projectIsTrusted(ctx);
+      let authorizationMode: AutomaticAuthorizationMode | undefined;
+      if (!persistentBlocked && persistentConsent.status === "enabled" && trustedProject) {
+        authorizationMode = "persistent";
+      } else if (automaticPanelState === "enabled") {
+        authorizationMode = "session";
+      } else if (persistentBlocked) {
         const detail = persistentConsent.status === "blocked"
           ? persistentConsent.message
           : "This extension instance observed an unknown persistent launch but could not durably record the block.";
         return {
-          content: [{ type: "text", text: `${detail} No automatic provider call was attempted.` }],
-          details: { status: "blocked", reason: "unknown-launch", persistentStatus: persistentConsent.status },
+          content: [{ type: "text", text: `${detail} No persistent provider call was attempted; an independently granted one-shot session path remains available.` }],
+          details: { status: "blocked", reason: "unknown-launch", persistentStatus: effectivePersistentStatus },
         };
-      }
-
-      const trustedProject = projectIsTrusted(ctx);
-      let authorizationMode: AutomaticAuthorizationMode | undefined;
-      if (persistentConsent.status === "enabled" && trustedProject) {
-        authorizationMode = "persistent";
-      } else if (automaticPanelState === "enabled") {
-        authorizationMode = "session";
       } else if (persistentConsent.status === "enabled") {
         return {
           content: [{ type: "text", text: "Persistent Expert Panel consent applies only to a project Pi currently marks trusted. No provider call was attempted." }],
@@ -1332,11 +1518,11 @@ export default function secondOpinionExtension(
         return {
           content: [{
             type: "text",
-            text: `Automatic Expert Panel session consent is ${automaticPanelState}; persistent consent is ${persistentConsent.status}.${persistentDetail} No provider call was attempted.`,
+            text: `Automatic Expert Panel session consent is ${automaticPanelState}; persistent consent is ${effectivePersistentStatus}.${persistentDetail} No provider call was attempted.`,
           }],
           details: {
             status: automaticPanelState,
-            persistentStatus: persistentConsent.status,
+            persistentStatus: effectivePersistentStatus,
           },
         };
       }
@@ -1400,6 +1586,23 @@ export default function secondOpinionExtension(
         };
       }
 
+      const persistentBudgetSessionId = authorizationMode === "persistent"
+        ? sessionIdFromContext(ctx)
+        : undefined;
+      const budgetRejection = persistentBudgetSessionId
+        ? persistentBudgetRejection(persistentBudgetSessionId, target.length, true)
+        : undefined;
+      if (budgetRejection) {
+        return {
+          content: [{ type: "text", text: `${budgetRejection.message} No provider call was attempted.` }],
+          details: {
+            status: "rejected",
+            reason: budgetRejection.reason,
+            authorization: "persistent",
+          },
+        };
+      }
+
       if (authorizationMode === "session") automaticPanelState = "consumed";
       const digest = createHash("sha256").update(target).digest("hex");
       const automaticBinding = authorizationMode === "session" && recommendationReceipt
@@ -1443,11 +1646,14 @@ export default function secondOpinionExtension(
           signal,
           authorizationMode === "persistent" ? "persistent-consent" : "session-consent",
           authorizationMode === "persistent" ? persistentConsentStore : undefined,
+          authorizationMode === "persistent" && reservationSessionId
+            ? () => consumePersistentBudget(reservationSessionId, target.length, true)
+            : undefined,
         );
       } finally {
         if (reservationSessionId) persistentLaunchReservations.delete(reservationSessionId);
       }
-      const unknownBlock = authorizationMode === "persistent" && outcome.status === "unknown"
+      let persistentBlock = authorizationMode === "persistent" && outcome.status === "unknown"
         ? blockPersistentConsentAfterUnknownLaunch()
         : "";
       const operation = trackOperation(
@@ -1457,13 +1663,18 @@ export default function secondOpinionExtension(
         authorizationMode,
         authorizationMode === "persistent" ? PERSISTENT_PANEL_MAX_ATTEMPTS : 1,
       );
+      const presentation = launchPresentation(
+        outcome,
+        operation,
+        "use await_expert_panel to collect the final synthesis and any bounded retry",
+      );
+      if (authorizationMode === "persistent" && presentation.uncorrelated && !persistentBlock) {
+        persistentBlock = blockPersistentConsentAfterUnknownLaunch();
+      }
       return {
-        content: [{
-          type: "text",
-          text: `${launchOutcomeText(outcome)}${unknownBlock}${operation ? ` Operation: ${operation.id}; use await_expert_panel to collect the final synthesis and any bounded retry.` : ""}`,
-        }],
+        content: [{ type: "text", text: `${presentation.text}${persistentBlock}` }],
         details: {
-          status: outcome.status,
+          status: presentation.status,
           runId: outcome.status === "launched" ? outcome.runId : undefined,
           operationId: operation?.id,
           targetChars: target.length,
@@ -1471,7 +1682,11 @@ export default function secondOpinionExtension(
           automaticGrant: authorizationMode === "persistent" ? "persistent" : "consumed",
           authorization: authorizationMode,
           maxAttempts: authorizationMode === "persistent" ? PERSISTENT_PANEL_MAX_ATTEMPTS : 1,
-          ...(unknownBlock ? { persistentStatus: "blocked" } : {}),
+          ...(authorizationMode === "persistent" ? {
+            maxOperationsPerSession: PERSISTENT_PANEL_MAX_OPERATIONS_PER_SESSION,
+            maxDisclosedCharsPerSession: PERSISTENT_PANEL_MAX_DISCLOSED_CHARS_PER_SESSION,
+          } : {}),
+          ...(persistentBlock ? { persistentStatus: "blocked" } : {}),
           ...(recommendationReceipt ? { recommendationReceipt: recommendationReceipt.digest } : {}),
         },
         terminate: false,
@@ -1549,7 +1764,12 @@ export default function secondOpinionExtension(
           const storedPersistent = persistentConsentStore.load();
           const persistentStatus = persistentLaunchBlockedInMemory ? "blocked" : storedPersistent.status;
           const trust = projectIsTrusted(ctx) ? "current project trusted" : "current project not trusted";
-          ctx.ui.notify(`Automatic Expert Panel session mode: ${automaticPanelState} (${detail}). Persistent mode: ${persistentStatus} (${trust}).`, ["blocked", "invalid", "stale"].includes(persistentStatus) ? "warning" : "info");
+          const sessionId = sessionIdFromContext(ctx);
+          const usage = sessionId ? usageForSession(sessionId) : undefined;
+          const usageDetail = usage
+            ? ` Usage: ${usage.activeOperations}/${PERSISTENT_PANEL_MAX_ACTIVE_PER_SESSION} active, ${usage.operationsStarted}/${PERSISTENT_PANEL_MAX_OPERATIONS_PER_SESSION} operations, ${usage.disclosedChars.toLocaleString()}/${PERSISTENT_PANEL_MAX_DISCLOSED_CHARS_PER_SESSION.toLocaleString()} disclosed characters.`
+            : " Usage unavailable because the session identity is missing.";
+          ctx.ui.notify(`Automatic Expert Panel session mode: ${automaticPanelState} (${detail}). Persistent mode: ${persistentStatus} (${trust}).${usageDetail}`, ["blocked", "invalid", "stale"].includes(persistentStatus) ? "warning" : "info");
           return;
         }
         if (command.scope === "persistent") {
@@ -1569,21 +1789,26 @@ export default function secondOpinionExtension(
             return;
           }
           const providerList = OPINION_MODELS.map((provider) => `  - ${provider}`).join("\n");
-          const blockedWarning = priorPersistent.status === "blocked" || persistentLaunchBlockedInMemory
-            ? "\n\nAn earlier persistent launch outcome was unknown. Inspect the owning subagent fleet before re-enabling; re-enrollment clears the block and could otherwise duplicate that disclosure."
+          const reenrollingAfterUnknown = priorPersistent.status === "blocked" || persistentLaunchBlockedInMemory;
+          const blockedWarning = reenrollingAfterUnknown
+            ? "\n\nAn earlier persistent launch outcome was unknown. Inspect the owning subagent fleet before re-enabling; re-enrollment clears the block and its active-session reservation and could otherwise duplicate that disclosure."
             : "";
           const confirmed = await ctx.ui.confirm(
             "Enable persistent automatic Expert Panel",
-            `This user-level grant applies in every project Pi marks trusted, including headless runs. It persists across sessions and /reload.\n\nIndependent panelists per attempt:\n${providerList}\n\nSynthesis: ${SYNTHESIZER_MODEL} receives the payload plus all four reports. A normal attempt makes five model calls. One automatic retry is allowed only after a definite failed run, so one operation can make up to ten model calls. Unknown, paused, or stopped outcomes are never retried. An unknown launch acknowledgement blocks persistent consent until fleet reconciliation and interactive re-enrollment. Only one persistent panel operation may be active per Pi session.\n\nThere is no per-run editor or confirmation. Trusted-project agents may initiate disclosure. The local scanner catches only obvious credential, email, and private-path patterns; passing does not prove sanitization. Calls already spawned cannot be revoked. The stored grant is bound to the current providers, chain, pi-subagents runtime, scanner, concurrency, retry, and unknown-launch contracts and becomes stale if that contract changes. Use /auto-panel disable persistent to revoke future launches.${blockedWarning}`,
+            `This user-level grant applies in every project Pi marks trusted, including headless runs. It persists across sessions and /reload.\n\nIndependent panelists per attempt:\n${providerList}\n\nSynthesis: ${SYNTHESIZER_MODEL} receives the payload plus all four reports. A normal attempt makes five model calls. One automatic retry is allowed only after a definite failed run, so one operation can make up to ten model calls. Unknown, paused, or stopped outcomes are never retried. An unknown launch acknowledgement blocks persistent consent until fleet reconciliation and interactive re-enrollment. Only one persistent panel operation may be active at a time. Each Pi session permits at most ${PERSISTENT_PANEL_MAX_OPERATIONS_PER_SESSION} persistent operations and ${PERSISTENT_PANEL_MAX_DISCLOSED_CHARS_PER_SESSION.toLocaleString()} cumulative disclosed characters, counting every emitted replacement payload.\n\nThere is no per-run editor or confirmation. Trusted-project agents may initiate disclosure. The local scanner catches only obvious credential, email, authorization-header, and private-path patterns; passing does not prove sanitization. Calls already spawned cannot be revoked. The stored grant is bound to the current providers, chain, pi-subagents runtime, scanner, concurrency, per-session volume, retry, and unknown-launch contracts and becomes stale if that contract changes. Use /auto-panel disable persistent to revoke future launches.${blockedWarning}`,
           );
           if (!confirmed) {
             ctx.ui.notify("Persistent Expert Panel consent was not enabled.", "info");
             return;
           }
+          const enrollmentSessionId = sessionIdFromContext(ctx);
+          if (reenrollingAfterUnknown && enrollmentSessionId) {
+            clearReconciledPersistentOperation(enrollmentSessionId);
+          }
           persistentConsentStore.enable();
-          persistentLaunchBlockedInMemory = false;
           const enabled = persistentConsentStore.load();
           if (enabled.status !== "enabled") throw new Error("Persistent Expert Panel consent could not be verified after writing it.");
+          persistentLaunchBlockedInMemory = false;
           ctx.ui.notify("Persistent Expert Panel consent enabled for all trusted projects.", "warning");
           return;
         }
@@ -1627,9 +1852,10 @@ export default function secondOpinionExtension(
         const target = resolveTarget(args, ctx.sessionManager.getBranch());
         const outcome = await launchExpertPanel(pi, dependencies, definition, target, ctx);
         const operation = trackOperation(outcome, target, ctx, "manual", 1);
+        const presentation = launchPresentation(outcome, operation);
         ctx.ui.notify(
-          `${launchOutcomeText(outcome)}${operation ? ` Operation: ${operation.id}.` : ""}`,
-          outcome.status === "unknown" ? "warning" : "info",
+          presentation.text,
+          outcome.status === "unknown" || presentation.uncorrelated ? "warning" : "info",
         );
       } catch (error) {
         ctx.ui.notify(error instanceof Error ? error.message : String(error), "error");

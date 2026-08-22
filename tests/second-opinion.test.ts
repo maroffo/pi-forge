@@ -14,7 +14,9 @@ import secondOpinionExtension, {
   extractLatestAssistantText,
   isCompleteSocraticRecommendation,
   parseAutoPanelCommand,
+  persistentAutoPanelConsentContract,
   persistentAutoPanelConsentContractSha256,
+  persistentPanelBudgetRejection,
   resolveTarget,
   validateChainDisclosure,
   validatePiSubagentsRuntime,
@@ -23,9 +25,11 @@ import { buildSecondOpinionChain } from "../scripts/build-second-opinion.mjs";
 import {
   CRITIC_AGENT,
   OPINION_MODELS,
+  PI_SUBAGENTS_VERSION,
   SYNTHESIZER_AGENT,
   SYNTHESIZER_MODEL,
 } from "../src/second-opinion-config.js";
+import { SECOND_OPINION_CHAIN_SHA256 } from "../src/second-opinion-integrity.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const EXPECTED_MODELS = [
@@ -170,7 +174,7 @@ test("panel docs distinguish preparation from guarded disclosure and reject proo
   assert.match(docs, /Persistent trusted-project and one-shot session consent intentionally replace those per-run dialogs/);
   assert.match(docs, /`await_expert_panel` waits on that exact same-session operation/);
   assert.match(docs, /may safely be repeated with the same operation ID; reconvening is never recovery/);
-  assert.match(docs, /Unknown launch acknowledgement also blocks persistent automation/);
+  assert.match(docs, /Unknown launch acknowledgement and persistent correlation failure block persistent automation/);
   assert.match(docs, /does not independently verify facts or prove correctness or causality/);
 });
 
@@ -314,12 +318,14 @@ function extensionHarness(options: {
     disable(): void;
   };
   registerBackgroundWorkProvider?: (provider: any) => () => void;
+  sessionEntries?: any[];
 } = {}) {
   const listeners = new Map<string, Set<(payload: unknown) => void>>();
   const emitted: Array<{ name: string; payload: Record<string, unknown> }> = [];
   const commands = new Map<string, (args: string, ctx: any) => Promise<void>>();
   const tools = new Map<string, any>();
   const lifecycleHandlers = new Map<string, (...args: any[]) => any>();
+  const sessionEntries: any[] = [...(options.sessionEntries ?? [])];
   const events = {
     on(name: string, handler: (payload: unknown) => void) {
       const handlers = listeners.get(name) ?? new Set();
@@ -376,6 +382,9 @@ function extensionHarness(options: {
     registerCommand(name: string, definition: { handler: (args: string, ctx: any) => Promise<void> }) {
       commands.set(name, definition.handler);
     },
+    appendEntry(customType: string, data: unknown) {
+      sessionEntries.push({ type: "custom", customType, data });
+    },
   } as any, {
     resolveLaunchContract: options.resolveLaunchContract ?? (async (input) => isolatedContract(input)),
     pingTimeoutMs: 50,
@@ -388,7 +397,16 @@ function extensionHarness(options: {
     }),
   });
 
-  return { commands, emitted, events, lifecycleHandlers, tools, getBackgroundProvider: () => registeredBackgroundProvider };
+  return {
+    commands,
+    emitted,
+    events,
+    lifecycleHandlers,
+    tools,
+    getBackgroundProvider: () => registeredBackgroundProvider,
+    getSessionEntries: () => sessionEntries,
+    getEventListenerCount: (name: string) => listeners.get(name)?.size ?? 0,
+  };
 }
 
 const PREPARED_PARAMS = {
@@ -516,6 +534,17 @@ test("extension snapshots the reviewed chain when it registers", async () => {
   assert.equal(harness.emitted.filter((event) => event.payload.method === "spawn").length, 0);
 });
 
+test("session shutdown disposes the background-work provider", () => {
+  let disposed = 0;
+  const harness = extensionHarness({
+    registerBackgroundWorkProvider: () => () => { disposed += 1; },
+  });
+  assert.equal(harness.getEventListenerCount("subagent:async-complete"), 1);
+  harness.lifecycleHandlers.get("session_shutdown")?.({});
+  assert.equal(disposed, 1);
+  assert.equal(harness.getEventListenerCount("subagent:async-complete"), 0);
+});
+
 test("automatic panel command parser and payload scanner fail closed", () => {
   assert.deepEqual(parseAutoPanelCommand(""), { action: "status" });
   assert.deepEqual(parseAutoPanelCommand(" STATUS "), { action: "status" });
@@ -535,6 +564,7 @@ test("automatic panel command parser and payload scanner fail closed", () => {
     ["-----BEGIN PRIVATE KEY-----", "private-key material"],
     ["password=supersecretvalue", "credential-like assignment"],
     ["token ghp_abcdefghijklmnopqrstuvwxyz", "provider-token shape"],
+    ["Authorization: Bearer abcdefghijklmnop", "authorization credential"],
     ["Contact person@example.com", "personal-email shape"],
     [`Read ${["", "Users", "example", "private", "source.ts"].join("/")}`, "private absolute path"],
   ]) {
@@ -542,6 +572,90 @@ test("automatic panel command parser and payload scanner fail closed", () => {
     assert.match(rejection ?? "", new RegExp(label));
     assert.doesNotMatch(rejection ?? "", new RegExp(payload.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }
+});
+
+test("persistent consent digest changes for every disclosed contract boundary", () => {
+  const contract = persistentAutoPanelConsentContract();
+  assert.deepEqual({
+    ...contract,
+    denyPatterns: contract.denyPatterns.map(({ label }) => label),
+  }, {
+    version: 1,
+    scope: "trusted-projects",
+    chainSha256: SECOND_OPINION_CHAIN_SHA256,
+    piSubagentsVersion: PI_SUBAGENTS_VERSION,
+    opinionModels: EXPECTED_MODELS,
+    synthesizerModel: SYNTHESIZER_MODEL,
+    maxPayloadChars: 200_000,
+    maxAttemptsPerOperation: 2,
+    maxActiveOperationsPerSession: 1,
+    maxOperationsPerSession: 3,
+    maxDisclosedCharsPerSession: 400_000,
+    sessionUsageVersion: 1,
+    sessionUsageEntry: "pi-forge.auto-panel-usage.v1",
+    retryPolicy: "one replacement only after a lifecycle-v3 failed result with structured children",
+    unknownLaunchPolicy: "block persistent consent until interactive re-enrollment",
+    denyPatterns: [
+      "private-key material",
+      "credential-like assignment",
+      "provider-token shape",
+      "authorization credential",
+      "personal-email shape",
+      "private absolute path",
+    ],
+  });
+  const digest = persistentAutoPanelConsentContractSha256(contract);
+  assert.equal(digest, persistentAutoPanelConsentContractSha256());
+
+  const mutations: Array<[string, (value: any) => void]> = [
+    ["chainSha256", (value) => { value.chainSha256 = "0".repeat(64); }],
+    ["piSubagentsVersion", (value) => { value.piSubagentsVersion = "0.0.0"; }],
+    ["opinionModels", (value) => { delete value.opinionModels; }],
+    ["synthesizerModel", (value) => { value.synthesizerModel = "other/model"; }],
+    ["maxPayloadChars", (value) => { value.maxPayloadChars -= 1; }],
+    ["maxAttemptsPerOperation", (value) => { value.maxAttemptsPerOperation -= 1; }],
+    ["maxActiveOperationsPerSession", (value) => { value.maxActiveOperationsPerSession += 1; }],
+    ["maxOperationsPerSession", (value) => { value.maxOperationsPerSession += 1; }],
+    ["maxDisclosedCharsPerSession", (value) => { value.maxDisclosedCharsPerSession += 1; }],
+    ["sessionUsageVersion", (value) => { value.sessionUsageVersion += 1; }],
+    ["sessionUsageEntry", (value) => { value.sessionUsageEntry = "changed"; }],
+    ["retryPolicy", (value) => { value.retryPolicy = "changed"; }],
+    ["unknownLaunchPolicy", (value) => { value.unknownLaunchPolicy = "changed"; }],
+    ["denyPatterns", (value) => { delete value.denyPatterns; }],
+  ];
+  for (const [field, mutate] of mutations) {
+    const changed = structuredClone(contract);
+    mutate(changed);
+    assert.notEqual(persistentAutoPanelConsentContractSha256(changed), digest, field);
+  }
+});
+
+test("persistent budget policy pins exact active, operation, and character boundaries", () => {
+  assert.equal(persistentPanelBudgetRejection({
+    activeOperations: 0,
+    operationsStarted: 2,
+    disclosedChars: 399_900,
+  }, 100, true), undefined);
+  assert.equal(persistentPanelBudgetRejection({
+    activeOperations: 0,
+    operationsStarted: 2,
+    disclosedChars: 399_900,
+  }, 101, true)?.reason, "disclosure-volume-limit");
+  assert.equal(persistentPanelBudgetRejection({
+    activeOperations: 0,
+    operationsStarted: 3,
+    disclosedChars: 0,
+  }, 1, true)?.reason, "operation-limit");
+  assert.equal(persistentPanelBudgetRejection({
+    activeOperations: 1,
+    operationsStarted: 1,
+    disclosedChars: 100,
+  }, 1, true)?.reason, "operation-active");
+  assert.equal(persistentPanelBudgetRejection({
+    activeOperations: 1,
+    operationsStarted: 1,
+    disclosedChars: 399_900,
+  }, 100, false), undefined);
 });
 
 test("persistent consent is private, atomic, contract-bound, and revocable", { skip: process.platform === "win32" }, async () => {
@@ -610,6 +724,9 @@ test("persistent consent command survives session reset and can be revoked", asy
   assert.match(disclosures[0] ?? "", /every project Pi marks trusted/);
   assert.match(disclosures[0] ?? "", /up to ten model calls/);
   assert.match(disclosures[0] ?? "", /Unknown, paused, or stopped outcomes are never retried/);
+  assert.match(disclosures[0] ?? "", /at most 3 persistent operations/);
+  assert.match(disclosures[0] ?? "", /400,000 cumulative disclosed characters/);
+  assert.match(disclosures[0] ?? "", /authorization-header/);
   assert.match(disclosures[0] ?? "", /disable persistent/);
 
   harness.lifecycleHandlers.get("session_start")?.({ reason: "reload" }, ctx);
@@ -650,7 +767,7 @@ test("automatic panel is default-off, explicitly enabled, one-shot, and reset by
   const toolContext = {
     hasUI: true,
     cwd: ROOT,
-    sessionManager: { getSessionFile: () => null },
+    sessionManager: { getSessionFile: () => null, getSessionId: () => "one-shot-session" },
     ui: { notify: (message: string, level?: string) => notifications.push({ message, level }) },
   };
 
@@ -818,7 +935,7 @@ test("automatic panel decline, invalid command, headless call, and payload rejec
   const toolContext = {
     hasUI: true,
     cwd: ROOT,
-    sessionManager: { getSessionFile: () => null },
+    sessionManager: { getSessionFile: () => null, getSessionId: () => "rejection-session" },
     ui: { notify: (message: string, level?: string) => notifications.push({ message, level }) },
   };
 
@@ -884,7 +1001,7 @@ test("automatic panel consumes synchronously before a concurrent second call", a
   const ctx = {
     hasUI: true,
     cwd: ROOT,
-    sessionManager: { getSessionFile: () => null },
+    sessionManager: { getSessionFile: () => null, getSessionId: () => "concurrent-session" },
     ui: { confirm: async () => true, notify() {} },
   };
   await command("enable", ctx);
@@ -1015,7 +1132,186 @@ test("persistent trusted-project consent launches headlessly and await returns t
   assert.equal(completed.details.attempts, 1);
   assert.equal(completed.details.retried, false);
   assert.match(completed.content[0].text, /Final evidence-bound synthesis/);
+  assert.equal(harness.getSessionEntries().at(-1)?.data.activeOperations, 0);
   assert.deepEqual(harness.getBackgroundProvider().listActiveWork(), []);
+});
+
+test("extension reload preserves an active persistent-operation reservation", async () => {
+  const sessionId = "active-across-reload";
+  const first = extensionHarness({ persistentConsentStore: memoryPersistentConsent("enabled") });
+  const firstContext = panelToolContext({ trusted: true, sessionId });
+  const launched = await first.tools.get("convene_opt_in_expert_panel").execute(
+    "active-before-reload",
+    AUTOMATIC_PARAMS,
+    undefined,
+    undefined,
+    firstContext,
+  );
+  assert.equal(launched.details.status, "launched");
+  assert.equal(first.getSessionEntries().at(-1)?.data.activeOperations, 1);
+
+  let spawnCount = 0;
+  const reloaded = extensionHarness({
+    persistentConsentStore: memoryPersistentConsent("enabled"),
+    sessionEntries: first.getSessionEntries(),
+    handleRequest(payload, reply) {
+      if (payload.method === "ping") reply({ version: 1 });
+      if (payload.method === "spawn") {
+        spawnCount += 1;
+        reply({ runId: "must-not-launch-after-reload" });
+      }
+    },
+  });
+  const reloadContext = {
+    ...panelToolContext({ trusted: true, sessionId }),
+    sessionManager: {
+      getSessionFile: () => null,
+      getSessionId: () => sessionId,
+      getBranch: () => first.getSessionEntries(),
+    },
+  };
+  reloaded.lifecycleHandlers.get("session_start")?.({ reason: "reload" }, reloadContext);
+  const rejected = await reloaded.tools.get("convene_opt_in_expert_panel").execute(
+    "after-active-reload",
+    AUTOMATIC_PARAMS,
+    undefined,
+    undefined,
+    reloadContext,
+  );
+  assert.equal(rejected.details.status, "rejected");
+  assert.equal(rejected.details.reason, "operation-active");
+  assert.match(rejected.content[0].text, /may still be active/);
+  assert.equal(spawnCount, 0);
+});
+
+test("persistent session operation cap survives extension reload", async () => {
+  const sessionId = "persistent-budget-session";
+  let firstSpawn = 0;
+  const firstHarness = extensionHarness({
+    persistentConsentStore: memoryPersistentConsent("enabled"),
+    handleRequest(payload, reply) {
+      if (payload.method === "ping") reply({ version: 1 });
+      if (payload.method === "spawn") reply({ runId: `budget-before-reload-${++firstSpawn}` });
+    },
+  });
+  const firstContext = panelToolContext({ trusted: true, sessionId });
+  const firstLaunch = await firstHarness.tools.get("convene_opt_in_expert_panel").execute(
+    "budget-before-reload",
+    AUTOMATIC_PARAMS,
+    undefined,
+    undefined,
+    firstContext,
+  );
+  firstHarness.events.emit("subagent:async-complete", {
+    runId: "budget-before-reload-1",
+    sessionId,
+    success: true,
+    state: "complete",
+    summary: "First operation settled.",
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(firstLaunch.details.status, "launched");
+  assert.equal(firstHarness.getSessionEntries().at(-1)?.data.operationsStarted, 1);
+
+  let reloadSpawn = 0;
+  const reloaded = extensionHarness({
+    persistentConsentStore: memoryPersistentConsent("enabled"),
+    sessionEntries: firstHarness.getSessionEntries(),
+    handleRequest(payload, reply) {
+      if (payload.method === "ping") reply({ version: 1 });
+      if (payload.method === "spawn") reply({ runId: `budget-after-reload-${++reloadSpawn}` });
+    },
+  });
+  const reloadContext = {
+    ...panelToolContext({ trusted: true, sessionId }),
+    sessionManager: {
+      getSessionFile: () => null,
+      getSessionId: () => sessionId,
+      getBranch: () => firstHarness.getSessionEntries(),
+    },
+  };
+  reloaded.lifecycleHandlers.get("session_start")?.({ reason: "reload" }, reloadContext);
+  for (let index = 1; index <= 2; index += 1) {
+    const launched = await reloaded.tools.get("convene_opt_in_expert_panel").execute(
+      `budget-after-reload-${index}`,
+      AUTOMATIC_PARAMS,
+      undefined,
+      undefined,
+      reloadContext,
+    );
+    assert.equal(launched.details.status, "launched");
+    reloaded.events.emit("subagent:async-complete", {
+      runId: `budget-after-reload-${index}`,
+      sessionId,
+      success: true,
+      state: "complete",
+      summary: `Operation ${index + 1} settled.`,
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  const rejected = await reloaded.tools.get("convene_opt_in_expert_panel").execute(
+    "budget-operation-four",
+    AUTOMATIC_PARAMS,
+    undefined,
+    undefined,
+    reloadContext,
+  );
+  assert.equal(rejected.details.status, "rejected");
+  assert.equal(rejected.details.reason, "operation-limit");
+  assert.match(rejected.content[0].text, /limit of 3 persistent Expert Panel operations/);
+  assert.equal(reloadSpawn, 2);
+  assert.equal(reloaded.getSessionEntries().at(-1)?.data.operationsStarted, 3);
+});
+
+test("persistent session enforces a cumulative disclosed-character budget", async () => {
+  const sessionId = "persistent-volume-session";
+  let spawnCount = 0;
+  const harness = extensionHarness({
+    persistentConsentStore: memoryPersistentConsent("enabled"),
+    handleRequest(payload, reply) {
+      if (payload.method === "ping") reply({ version: 1 });
+      if (payload.method === "spawn") reply({ runId: `volume-run-${++spawnCount}` });
+    },
+  });
+  const ctx = panelToolContext({ trusted: true, sessionId });
+  const largeParams = {
+    ...AUTOMATIC_PARAMS,
+    subject: "S".repeat(120_000),
+    context: "C".repeat(35_000),
+    evidence: "E".repeat(20_000),
+    uncertainties: "U".repeat(10_000),
+    reviewQuestions: ["Q".repeat(2_000), "R".repeat(2_000)],
+  };
+  for (let index = 1; index <= 2; index += 1) {
+    const launched = await harness.tools.get("convene_opt_in_expert_panel").execute(
+      `large-${index}`,
+      largeParams,
+      undefined,
+      undefined,
+      ctx,
+    );
+    assert.equal(launched.details.status, "launched");
+    harness.events.emit("subagent:async-complete", {
+      runId: `volume-run-${index}`,
+      sessionId,
+      success: true,
+      state: "complete",
+      summary: "Large operation settled.",
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  const rejected = await harness.tools.get("convene_opt_in_expert_panel").execute(
+    "large-3",
+    largeParams,
+    undefined,
+    undefined,
+    ctx,
+  );
+  assert.equal(rejected.details.status, "rejected");
+  assert.equal(rejected.details.reason, "disclosure-volume-limit");
+  assert.match(rejected.content[0].text, /400,000-character/);
+  assert.equal(spawnCount, 2);
+  assert.ok(harness.getSessionEntries().at(-1)?.data.disclosedChars < 400_000);
 });
 
 test("persistent operations retry one definite failure and await the replacement result", async () => {
@@ -1071,6 +1367,9 @@ test("persistent operations retry one definite failure and await the replacement
   assert.equal(completed.details.retried, true);
   assert.match(completed.content[0].text, /Replacement attempt produced/);
   assert.equal(spawnCount, 2);
+  assert.equal(harness.getSessionEntries().at(-1)?.data.operationsStarted, 1);
+  assert.equal(harness.getSessionEntries().at(-1)?.data.activeOperations, 0);
+  assert.equal(harness.getSessionEntries().at(-1)?.data.disclosedChars, launched.details.targetChars * 2);
   assert.deepEqual(harness.getBackgroundProvider().listActiveWork(), []);
 });
 
@@ -1116,6 +1415,45 @@ test("persistent retry stops after a second failed run", async () => {
   assert.equal(failed.details.status, "failed");
   assert.equal(failed.details.attempts, 2);
   assert.equal(spawnCount, 2);
+});
+
+test("persistent retry requires structured child results", async () => {
+  let spawnCount = 0;
+  const harness = extensionHarness({
+    persistentConsentStore: memoryPersistentConsent("enabled"),
+    handleRequest(payload, reply) {
+      if (payload.method === "ping") reply({ version: 1 });
+      if (payload.method === "spawn") reply({ runId: `unstructured-run-${++spawnCount}` });
+    },
+  });
+  const ctx = panelToolContext({ trusted: true, sessionId: "unstructured-session" });
+  const launched = await harness.tools.get("convene_opt_in_expert_panel").execute(
+    "unstructured-results",
+    AUTOMATIC_PARAMS,
+    undefined,
+    undefined,
+    ctx,
+  );
+  const waiting = harness.tools.get("await_expert_panel").execute(
+    "await-unstructured-results",
+    { operationId: launched.details.operationId, timeoutMs: 5_000 },
+    undefined,
+    undefined,
+    ctx,
+  );
+  harness.events.emit("subagent:async-complete", {
+    lifecycleArtifactVersion: 3,
+    runId: "unstructured-run-1",
+    sessionId: "unstructured-session",
+    success: false,
+    state: "failed",
+    summary: "Lifecycle result omitted structured children.",
+    results: { malformed: true },
+  });
+  const failed = await waiting;
+  assert.equal(failed.details.status, "failed");
+  assert.equal(failed.details.attempts, 1);
+  assert.equal(spawnCount, 1);
 });
 
 test("revocation between a failed result and retry prevents replacement spawn", async () => {
@@ -1197,14 +1535,131 @@ test("await is session-bound and aborting it leaves the operation active", async
   assert.deepEqual(harness.getBackgroundProvider().listActiveWork(), []);
 });
 
+test("settled operation retention distinguishes expired from unknown IDs", async () => {
+  let spawnCount = 0;
+  const harness = extensionHarness({
+    handleRequest(payload, reply) {
+      if (payload.method === "ping") reply({ version: 1 });
+      if (payload.method === "spawn") reply({ runId: `retention-run-${++spawnCount}` });
+    },
+  });
+  const ctx = {
+    ...panelToolContext({ trusted: true, hasUI: true, sessionId: "retention-session" }),
+    ui: {
+      editor: async (_title: string, initial: string) => initial,
+      confirm: async () => true,
+    },
+  };
+  let firstOperationId = "";
+  for (let index = 1; index <= 21; index += 1) {
+    const launched = await harness.tools.get("convene_expert_panel").execute(
+      `retention-${index}`,
+      PREPARED_PARAMS,
+      undefined,
+      undefined,
+      ctx,
+    );
+    if (index === 1) firstOperationId = launched.details.operationId;
+    harness.events.emit("subagent:async-complete", {
+      runId: `retention-run-${index}`,
+      sessionId: "retention-session",
+      success: true,
+      state: "complete",
+      summary: `Retention result ${index}.`,
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  const expired = await harness.tools.get("await_expert_panel").execute(
+    "await-expired",
+    { operationId: firstOperationId, timeoutMs: 5_000 },
+    undefined,
+    undefined,
+    ctx,
+  );
+  assert.equal(expired.details.status, "expired");
+  assert.equal(expired.isError, true);
+  assert.match(expired.content[0].text, /expired from the bounded in-session cache/);
+
+  const unknown = await harness.tools.get("await_expert_panel").execute(
+    "await-unknown",
+    { operationId: "00000000-0000-4000-8000-000000000000", timeoutMs: 5_000 },
+    undefined,
+    undefined,
+    ctx,
+  );
+  assert.equal(unknown.details.status, "not-found");
+});
+
+test("session start reconciles foreign in-flight operations without retry", async () => {
+  const consent = memoryPersistentConsent("enabled");
+  let spawnCount = 0;
+  const harness = extensionHarness({
+    persistentConsentStore: consent,
+    handleRequest(payload, reply) {
+      if (payload.method === "ping") reply({ version: 1 });
+      if (payload.method === "spawn") reply({ runId: `session-change-run-${++spawnCount}` });
+    },
+  });
+  const ownerContext = {
+    ...panelToolContext({ trusted: true, sessionId: "session-before-change" }),
+    sessionManager: {
+      getSessionFile: () => null,
+      getSessionId: () => "session-before-change",
+      getBranch: () => harness.getSessionEntries(),
+    },
+  };
+  harness.lifecycleHandlers.get("session_start")?.({}, ownerContext);
+  const launched = await harness.tools.get("convene_opt_in_expert_panel").execute(
+    "session-change",
+    AUTOMATIC_PARAMS,
+    undefined,
+    undefined,
+    ownerContext,
+  );
+  const waiting = harness.tools.get("await_expert_panel").execute(
+    "await-session-change",
+    { operationId: launched.details.operationId, timeoutMs: 5_000 },
+    undefined,
+    undefined,
+    ownerContext,
+  );
+  harness.lifecycleHandlers.get("session_start")?.({}, {
+    ...panelToolContext({ trusted: true, sessionId: "session-after-change" }),
+    sessionManager: {
+      getSessionFile: () => null,
+      getSessionId: () => "session-after-change",
+      getBranch: () => [],
+    },
+  });
+  const reconciled = await waiting;
+  assert.equal(reconciled.details.status, "unknown");
+  assert.equal(reconciled.details.attempts, 1);
+  assert.match(reconciled.content[0].text, /owning Pi session changed/);
+  assert.equal(consent.load().status, "blocked");
+  assert.equal(spawnCount, 1);
+  assert.deepEqual(harness.getBackgroundProvider().listActiveWork(), []);
+});
+
 test("persistent launch reservation blocks a concurrent pre-acknowledgement call", async () => {
   let releaseFirstPreflight!: () => void;
   let markFirstPreflight!: () => void;
   const entered = new Promise<void>((resolve) => { markFirstPreflight = resolve; });
   const gate = new Promise<void>((resolve) => { releaseFirstPreflight = resolve; });
   let resolverCalls = 0;
+  const sessionEntries = [{
+    type: "custom",
+    customType: "pi-forge.auto-panel-usage.v1",
+    data: {
+      version: 1,
+      sessionId: "reservation-session",
+      operationsStarted: 2,
+      activeOperations: 0,
+      disclosedChars: 1_000,
+    },
+  }];
   const harness = extensionHarness({
     persistentConsentStore: memoryPersistentConsent("enabled"),
+    sessionEntries,
     async resolveLaunchContract(input) {
       resolverCalls += 1;
       if (resolverCalls === 1) {
@@ -1215,7 +1670,15 @@ test("persistent launch reservation blocks a concurrent pre-acknowledgement call
     },
   });
   const tool = harness.tools.get("convene_opt_in_expert_panel");
-  const ctx = panelToolContext({ trusted: true, sessionId: "reservation-session" });
+  const ctx = {
+    ...panelToolContext({ trusted: true, sessionId: "reservation-session" }),
+    sessionManager: {
+      getSessionFile: () => null,
+      getSessionId: () => "reservation-session",
+      getBranch: () => sessionEntries,
+    },
+  };
+  harness.lifecycleHandlers.get("session_start")?.({}, ctx);
   const first = tool.execute("first-persistent", AUTOMATIC_PARAMS, undefined, undefined, ctx);
   await entered;
   const second = await tool.execute("second-persistent", AUTOMATIC_PARAMS, undefined, undefined, ctx);
@@ -1225,6 +1688,8 @@ test("persistent launch reservation blocks a concurrent pre-acknowledgement call
   const launched = await first;
   assert.equal(launched.details.status, "launched");
   assert.equal(harness.emitted.filter((event) => event.payload.method === "spawn").length, 1);
+  assert.equal(harness.getSessionEntries().at(-1)?.data.operationsStarted, 3);
+  assert.equal(harness.getSessionEntries().at(-1)?.data.activeOperations, 1);
 });
 
 test("persistent launch revalidates project trust adjacent to spawn", async () => {
@@ -1307,6 +1772,83 @@ test("an untrusted project can still use an explicit one-shot session grant", as
   assert.equal(launched.details.authorization, "session");
   assert.equal(launched.details.maxAttempts, 1);
   assert.equal(consent.load().status, "enabled");
+});
+
+test("a blocked persistent grant does not suppress an independent one-shot session grant", async () => {
+  const consent = memoryPersistentConsent("blocked");
+  const harness = extensionHarness({ persistentConsentStore: consent });
+  const notifications: string[] = [];
+  const ctx = {
+    ...panelToolContext({ trusted: true, hasUI: true, sessionId: "blocked-persistent-session" }),
+    ui: {
+      confirm: async () => true,
+      notify: (message: string) => notifications.push(message),
+    },
+  };
+  await harness.commands.get("auto-panel")!("enable", ctx);
+  await harness.commands.get("auto-panel")!("status", ctx);
+  assert.match(notifications.at(-1) ?? "", /session mode: enabled/);
+  assert.match(notifications.at(-1) ?? "", /Persistent mode: blocked/);
+
+  emitSocraticRecommendation(harness);
+  const launched = await harness.tools.get("convene_opt_in_expert_panel").execute(
+    "session-despite-persistent-block",
+    AUTOMATIC_PARAMS,
+    undefined,
+    undefined,
+    ctx,
+  );
+  assert.equal(launched.details.status, "launched");
+  assert.equal(launched.details.authorization, "session");
+  assert.equal(consent.load().status, "blocked");
+  assert.equal(harness.emitted.filter((event) => event.payload.method === "spawn").length, 1);
+});
+
+test("a launched but uncorrelated persistent run is explicit and blocks the grant", async () => {
+  const consent = memoryPersistentConsent("enabled");
+  const harness = extensionHarness({
+    persistentConsentStore: consent,
+    handleRequest(payload, reply) {
+      if (payload.method === "ping") reply({ version: 1 });
+      if (payload.method === "spawn") reply({ runId: "duplicate-run-id" });
+    },
+  });
+  const ctx = {
+    ...panelToolContext({ trusted: true, hasUI: true, sessionId: "uncorrelated-session" }),
+    ui: {
+      editor: async (_title: string, initial: string) => initial,
+      confirm: async () => true,
+      notify() {},
+    },
+  };
+  const manual = await harness.tools.get("convene_expert_panel").execute(
+    "manual-first",
+    PREPARED_PARAMS,
+    undefined,
+    undefined,
+    ctx,
+  );
+  assert.equal(manual.details.status, "launched");
+  assert.match(manual.details.operationId, /^[a-f0-9-]{36}$/);
+
+  const uncorrelated = await harness.tools.get("convene_opt_in_expert_panel").execute(
+    "persistent-duplicate",
+    AUTOMATIC_PARAMS,
+    undefined,
+    undefined,
+    ctx,
+  );
+  assert.equal(uncorrelated.details.status, "launched-uncorrelated");
+  assert.equal(uncorrelated.details.operationId, undefined);
+  assert.equal(uncorrelated.details.persistentStatus, "blocked");
+  assert.match(uncorrelated.content[0].text, /run is active but.*could not create a correlated operation handle/i);
+  assert.match(uncorrelated.content[0].text, /\/subagents-fleet/);
+  assert.equal(consent.load().status, "blocked");
+  assert.equal(harness.getSessionEntries().at(-1)?.data.activeOperations, 1);
+
+  await harness.commands.get("auto-panel")!("enable persistent", ctx);
+  assert.equal(consent.load().status, "enabled");
+  assert.equal(harness.getSessionEntries().at(-1)?.data.activeOperations, 0);
 });
 
 test("ambiguous persistent spawn outcomes block automatic consent", async () => {
@@ -1585,7 +2127,10 @@ test("expert-panel command launches the isolated async chain immediately", async
   assert.deepEqual(params.chain, buildSecondOpinionChain().chain);
   assert.match(confirmations[0] ?? "", /anthropic\/claude-fable-5/);
   assert.match(confirmations[0] ?? "", /receives the payload again plus all four reports/);
-  assert.deepEqual(notifications.at(-1), { message: "Expert panel launched: run-1", level: "info" });
+  assert.equal(notifications.at(-1)?.level, "warning");
+  assert.match(notifications.at(-1)?.message ?? "", /launched: run-1/);
+  assert.match(notifications.at(-1)?.message ?? "", /could not create a correlated operation handle/);
+  assert.match(notifications.at(-1)?.message ?? "", /do not reconvene/);
 });
 
 test("prepared-brief tool formats context before launching the same chain", async () => {
@@ -1674,11 +2219,13 @@ test("prepared-brief tool formats context before launching the same chain", asyn
   assert.match(confirmations[0] ?? "", /SHA-256 [a-f0-9]{64}/);
   assert.equal(result.terminate, false);
   assert.deepEqual(result.details, {
-    status: "launched",
+    status: "launched-uncorrelated",
     runId: "prepared-run",
     operationId: undefined,
     targetChars: task.length,
   });
+  assert.match(result.content[0].text, /could not create a correlated operation handle/);
+  assert.match(result.content[0].text, /\/subagents-fleet/);
 });
 
 test("prepared tool cancellation and headless mode emit no spawn", async () => {

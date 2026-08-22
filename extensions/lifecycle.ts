@@ -178,6 +178,10 @@ function isStrictDescendant(root: string, target: string): boolean {
     && !isAbsolute(candidate);
 }
 
+function effectivePiAgentDirectory(): string {
+  return resolve(process.env.PI_CODING_AGENT_DIR?.trim() || join(homedir(), ".pi", "agent"));
+}
+
 async function isEligibleWorktreeTarget(
   pi: ExtensionAPI,
   cwd: string,
@@ -193,11 +197,8 @@ async function isEligibleWorktreeTarget(
     return false;
   }
   const canonicalTarget = canonicalPath(targetPath, cwd);
-  if (sensitivePathReason(canonicalTarget, homedir())) return false;
-  const fromRoot = relative(projectRoot, canonicalTarget);
-  if (fromRoot === "" || (!fromRoot.startsWith(`..${sep}`) && fromRoot !== ".." && !isAbsolute(fromRoot))) {
-    return false;
-  }
+  if (sensitivePathReason(canonicalTarget, homedir(), effectivePiAgentDirectory())) return false;
+  if (canonicalTarget === projectRoot || isStrictDescendant(projectRoot, canonicalTarget)) return false;
   let temporaryRoot: string;
   try {
     temporaryRoot = realpathSync(tmpdir());
@@ -252,7 +253,7 @@ export default function lifecycleExtension(pi: ExtensionAPI): void {
       } catch {
         return { block: true, reason: "Pi Forge could not canonicalize the write target." };
       }
-      const sensitive = sensitivePathReason(absolutePath, homedir());
+      const sensitive = sensitivePathReason(absolutePath, homedir(), effectivePiAgentDirectory());
       if (!sensitive) return;
       return confirmRisk(
         ctx,

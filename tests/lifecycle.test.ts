@@ -76,6 +76,17 @@ test("Git command classification catches common wrappers without matching quoted
     "git branch --delete topic",
     "git branch -df topic",
     "git branch --move old new",
+    "git branch -r -d origin/topic",
+    "git branch --remotes --delete origin/topic",
+    "git branch --all -m old new",
+    "git branch -v -f victim main",
+    "git branch -v --force victim main",
+    "git branch -v -u origin/main victim",
+    "git branch -v created main",
+    "git branch --remotes --del origin/topic",
+    "git stash",
+    "git config user.name --get",
+    "git config --global user.name --get",
     "git tag -dtopic",
     "git tag --delete=topic",
     "git worktree remove /tmp/w",
@@ -83,6 +94,16 @@ test("Git command classification catches common wrappers without matching quoted
   assert.deepEqual(findGitMutations("git status --short"), []);
   assert.deepEqual(findGitMutations("git branch --show-current"), []);
   assert.deepEqual(findGitMutations("git branch --list"), []);
+  assert.deepEqual(findGitMutations("git branch -v"), []);
+  assert.deepEqual(findGitMutations("git branch --format='%(refname)'"), []);
+  assert.deepEqual(findGitMutations("git branch --sort=-authordate"), []);
+  assert.deepEqual(findGitMutations("git branch --list topic"), []);
+  assert.deepEqual(findGitMutations("git branch -av"), []);
+  assert.deepEqual(findGitMutations("git branch --contains HEAD"), []);
+  assert.deepEqual(findGitMutations("git config --get user.name"), []);
+  assert.deepEqual(findGitMutations("git config --global --get user.name"), []);
+  assert.deepEqual(findGitMutations("git config user.name"), []);
+  assert.deepEqual(findGitMutations("git stash list"), []);
   assert.deepEqual(findGitMutations("git worktree list"), []);
   assert.deepEqual(findGitMutations("echo 'git commit is blocked'"), []);
 
@@ -96,6 +117,14 @@ test("sensitive path classification is exact enough for credentials and Git cont
   assert.equal(sensitivePathReason("/repo/.git/hooks/pre-commit", homedir()), "Git control or credential file");
   assert.equal(sensitivePathReason("/repo/.git/config.worktree", homedir()), "Git control or credential file");
   assert.equal(sensitivePathReason("/repo/.env.local", homedir()), "environment or credential file");
+  assert.equal(
+    sensitivePathReason(join(homedir(), ".pi", "agent", "pi-forge", "auto-panel-consent.json"), homedir()),
+    "Pi agent configuration or consent file",
+  );
+  assert.equal(
+    sensitivePathReason("/private/pi-agent/pi-forge/auto-panel-consent.json", homedir(), "/private/pi-agent"),
+    "Pi agent configuration or consent file",
+  );
   assert.equal(sensitivePathReason("/repo/src/config.ts", homedir()), undefined);
 });
 
@@ -113,12 +142,14 @@ function harness(options: {
   const handlers = new Map<string, (...args: any[]) => any>();
   const entries: Array<{ type: string; data: any }> = [];
   const messages: any[] = [];
+  const execCalls: Array<{ command: string; args: string[] }> = [];
   const branch = options.branch ?? "feat/test";
   lifecycleExtension({
     on(name: string, handler: (...args: any[]) => any) { handlers.set(name, handler); },
     appendEntry(type: string, data: any) { entries.push({ type, data }); },
     sendMessage(message: any, sendOptions: any) { messages.push({ message, sendOptions }); },
     exec(command: string, args: string[]) {
+      execCalls.push({ command, args: [...args] });
       assert.equal(command, "git");
       if (args[0] === "symbolic-ref") {
         assert.deepEqual(args, ["symbolic-ref", "--quiet", "--short", "HEAD"]);
@@ -152,7 +183,7 @@ function harness(options: {
     sessionManager: { getBranch: () => [] },
   };
   handlers.get("session_start")?.({}, context);
-  return { handlers, entries, messages, context };
+  return { handlers, entries, messages, context, execCalls };
 }
 
 test("standing authorization accepts only exact branch, worktree, push, and PR-create forms", async () => {
@@ -248,6 +279,22 @@ test("canonical standing-authorized branch and worktree commands work against re
     git(repository, "add", "tracked.txt");
     git(repository, "commit", "-m", "task change");
 
+    git(repository, "branch", "classifier-victim", "HEAD~1");
+    const victimBefore = git(repository, "rev-parse", "classifier-victim");
+    const forcedReset = "git branch -v -f classifier-victim HEAD";
+    assert.deepEqual(findGitMutations(forcedReset).map((item) => item.kind), ["destructive"]);
+    git(repository, "branch", "-v", "-f", "classifier-victim", "HEAD");
+    assert.notEqual(git(repository, "rev-parse", "classifier-victim"), victimBefore);
+    assert.equal(git(repository, "rev-parse", "classifier-victim"), git(repository, "rev-parse", "HEAD"));
+
+    git(repository, "update-ref", "refs/remotes/origin/abbreviated", "HEAD");
+    const abbreviatedDelete = "git branch --remotes --del origin/abbreviated";
+    assert.deepEqual(findGitMutations(abbreviatedDelete).map((item) => item.kind), ["destructive"]);
+    git(repository, "branch", "--remotes", "--del", "origin/abbreviated");
+    assert.equal(spawnSync("git", ["show-ref", "--verify", "--quiet", "refs/remotes/origin/abbreviated"], {
+      cwd: repository,
+    }).status, 1);
+
     const worktreeCommand = `${NEUTRALIZED_GIT} worktree add -b feat/real-worktree ${worktree} HEAD`;
     assert.deepEqual(parseStandingAuthorizedWorktreeCreate(worktreeCommand), {
       branch: "feat/real-worktree",
@@ -331,6 +378,81 @@ test("lifecycle standing authorization creates only a fresh non-primary branch o
   }
 });
 
+test("worktree eligibility covers non-temporary adjacent roots and sensitive home targets", async () => {
+  const parent = await mkdtemp(join(homedir(), ".pi-forge-lifecycle-parent-"));
+  const repository = join(parent, "repository");
+  const adjacentTarget = join(parent, "adjacent-worktree");
+  const homeRepository = await mkdtemp(join(homedir(), "pi-forge-lifecycle-home-project-"));
+  const sensitiveTarget = join(homedir(), ".ssh", `pi-forge-worktree-${process.pid}`);
+  try {
+    await mkdir(repository);
+    const git = (...args: string[]) => {
+      const result = spawnSync("git", args, { cwd: repository, encoding: "utf8" });
+      assert.equal(result.status, 0, `${args.join(" ")}: ${result.stderr || result.stdout}`);
+      return result.stdout;
+    };
+    git("init", "-b", "main");
+    git("config", "user.name", "Pi Forge Test");
+    git("config", "user.email", "pi-forge@example.invalid");
+    await writeFile(join(repository, "tracked.txt"), "initial\n");
+    git("add", "tracked.txt");
+    git("commit", "-m", "initial");
+
+    const realHandlers = new Map<string, (...args: any[]) => any>();
+    lifecycleExtension({
+      on(name: string, handler: (...args: any[]) => any) { realHandlers.set(name, handler); },
+      appendEntry() {},
+      sendMessage() {},
+      exec(command: string, args: string[], options: { cwd?: string } = {}) {
+        const result = spawnSync(command, args, { cwd: options.cwd ?? repository, encoding: "utf8" });
+        return {
+          stdout: result.stdout ?? "",
+          stderr: result.stderr ?? "",
+          code: result.status ?? 1,
+          killed: result.signal !== null,
+        };
+      },
+    } as any);
+    const realContext = {
+      cwd: repository,
+      hasUI: false,
+      ui: {},
+      sessionManager: { getBranch: () => [] },
+    };
+    realHandlers.get("session_start")?.({}, realContext);
+    assert.equal(await realHandlers.get("tool_call")!({
+      toolName: "bash",
+      input: { command: `${NEUTRALIZED_GIT} worktree add -b feat/adjacent ${adjacentTarget} HEAD` },
+    }, realContext), undefined);
+
+    const sensitive = harness({ cwd: homeRepository, projectRoot: homeRepository, branch: "main" });
+    assert.match((await sensitive.handlers.get("tool_call")!({
+      toolName: "bash",
+      input: { command: `${NEUTRALIZED_GIT} worktree add -b feat/sensitive ${sensitiveTarget} HEAD` },
+    }, sensitive.context)).reason, /interactive confirmation/);
+
+    const invalidRef = harness({ cwd: repository, projectRoot: repository, branch: "main", validNewBranch: false });
+    assert.match((await invalidRef.handlers.get("tool_call")!({
+      toolName: "bash",
+      input: { command: `${NEUTRALIZED_GIT} switch -c feat/ref-check` },
+    }, invalidRef.context)).reason, /interactive confirmation/);
+    assert.ok(invalidRef.execCalls.some(({ args }) => args[0] === "check-ref-format"));
+
+    const unborn = harness({ cwd: repository, projectRoot: repository, branch: "main", existingBranch: false });
+    assert.match((await unborn.handlers.get("tool_call")!({
+      toolName: "bash",
+      input: { command: `${NEUTRALIZED_GIT} switch -c feat/unborn-head` },
+    }, unborn.context)).reason, /interactive confirmation/);
+    assert.match((await unborn.handlers.get("tool_call")!({
+      toolName: "bash",
+      input: { command: `${NEUTRALIZED_GIT} worktree add -b feat/unborn-worktree ${join(parent, "unborn-worktree")} HEAD` },
+    }, unborn.context)).reason, /interactive confirmation/);
+  } finally {
+    await rm(parent, { recursive: true, force: true });
+    await rm(homeRepository, { recursive: true, force: true });
+  }
+});
+
 test("lifecycle blocks direct commits and gates remote or destructive mutations", async () => {
   const headless = harness();
   const call = headless.handlers.get("tool_call")!;
@@ -349,6 +471,13 @@ test("lifecycle blocks direct commits and gates remote or destructive mutations"
   }, headless.context), undefined);
   assert.match((await call({ toolName: "bash", input: { command: "git push origin HEAD" } }, headless.context)).reason, /interactive confirmation/);
   assert.match((await call({ toolName: "bash", input: { command: "git reset --hard HEAD" } }, headless.context)).reason, /interactive confirmation/);
+  assert.match((await call({ toolName: "bash", input: { command: "git branch -r -d origin/topic" } }, headless.context)).reason, /interactive confirmation/);
+  assert.match((await call({ toolName: "bash", input: { command: "git branch -v -f victim main" } }, headless.context)).reason, /interactive confirmation/);
+  assert.match((await call({ toolName: "bash", input: { command: "git branch --remotes --del origin/topic" } }, headless.context)).reason, /interactive confirmation/);
+  assert.match((await call({ toolName: "bash", input: { command: "git config user.name --get" } }, headless.context)).reason, /interactive confirmation/);
+  assert.match((await call({ toolName: "bash", input: { command: "git stash" } }, headless.context)).reason, /interactive confirmation/);
+  assert.equal(await call({ toolName: "bash", input: { command: "git branch -v" } }, headless.context), undefined);
+  assert.equal(await call({ toolName: "bash", input: { command: "git config --get user.name" } }, headless.context), undefined);
 
   assert.match((await call({
     toolName: "bash",

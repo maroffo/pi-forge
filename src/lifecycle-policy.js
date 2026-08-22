@@ -317,6 +317,66 @@ function unwrapCommand(words) {
   return { index, words };
 }
 
+function branchArgumentsAreReadOnly(args) {
+  if (args.length === 0) return true;
+  const noValueOptions = new Set([
+    "--color", "--column", "--ignore-case", "--no-abbrev", "--no-color", "--no-column",
+    "--omit-empty", "--show-current", "--verbose", "-v", "-vv",
+  ]);
+  const listOptions = new Set(["--all", "--list", "--remotes", "-a", "-l", "-r"]);
+  const requiredValueOptions = new Set(["--abbrev", "--format", "--sort"]);
+  const optionalSelectorOptions = new Set([
+    "--contains", "--merged", "--no-contains", "--no-merged",
+  ]);
+  let listMode = false;
+  for (let index = 0; index < args.length;) {
+    const token = args[index];
+    if (token === "--") return listMode;
+    if (!token.startsWith("-")) {
+      if (!listMode) return false;
+      index += 1;
+      continue;
+    }
+    if (listOptions.has(token)) {
+      listMode = true;
+      index += 1;
+      continue;
+    }
+    if (/^-[alrv]+$/.test(token)) {
+      if (/[alr]/.test(token)) listMode = true;
+      index += 1;
+      continue;
+    }
+    if (noValueOptions.has(token) || /^(?:--color|--column)(?:=.+)?$/.test(token)) {
+      index += 1;
+      continue;
+    }
+    if (/^(?:--abbrev|--format|--sort)=.+$/.test(token)) {
+      index += 1;
+      continue;
+    }
+    if (requiredValueOptions.has(token)) {
+      if (!args[index + 1] || args[index + 1].startsWith("-")) return false;
+      index += 2;
+      continue;
+    }
+    if (token === "--points-at" || token.startsWith("--points-at=")) {
+      if (token === "--points-at" && (!args[index + 1] || args[index + 1].startsWith("-"))) return false;
+      listMode = true;
+      index += token === "--points-at" ? 2 : 1;
+      continue;
+    }
+    if (optionalSelectorOptions.has(token) || /^(?:--contains|--merged|--no-contains|--no-merged)=.+$/.test(token)) {
+      listMode = true;
+      if (optionalSelectorOptions.has(token) && args[index + 1] && !args[index + 1].startsWith("-")) index += 2;
+      else index += 1;
+      continue;
+    }
+    return false;
+  }
+  return true;
+}
+
 function gitAction(words, start) {
   let index = start + 1;
   while (index < words.length) {
@@ -337,16 +397,36 @@ function gitAction(words, start) {
   }
   const action = (words[index] ?? "").toLowerCase();
   const args = words.slice(index + 1);
-  if (action === "branch") {
-    const readOnly = new Set([
-      "--all", "--contains", "--list", "--merged", "--no-contains", "--no-merged",
-      "--remotes", "--show-current", "-a", "-l", "-r",
+  if (action === "branch" && branchArgumentsAreReadOnly(args)) return undefined;
+  if (action === "config") {
+    const modifiers = new Set([
+      "--fixed-value", "--global", "--includes", "--local", "--name-only", "--no-includes",
+      "--null", "--show-names", "--show-origin", "--show-scope", "--system", "--worktree", "-z",
     ]);
-    if (!args[0] || readOnly.has(args[0])) return undefined;
+    const valuedModifiers = new Set(["--blob", "--default", "--file", "--type", "-f"]);
+    let configIndex = 0;
+    while (configIndex < args.length) {
+      const token = args[configIndex];
+      if (modifiers.has(token) || /^(?:--blob|--default|--file|--type)=/.test(token)) {
+        configIndex += 1;
+        continue;
+      }
+      if (valuedModifiers.has(token) && args[configIndex + 1] !== undefined) {
+        configIndex += 2;
+        continue;
+      }
+      break;
+    }
+    const configArgs = args.slice(configIndex);
+    const queryActions = new Set([
+      "--get", "--get-all", "--get-regexp", "--get-urlmatch", "--list", "-l",
+      "get", "get-all", "get-regexp", "get-urlmatch", "list",
+    ]);
+    if (!configArgs[0] || queryActions.has(configArgs[0])) return undefined;
+    if (configArgs.length === 1 && !configArgs[0].startsWith("-")) return undefined;
   }
-  if (action === "config" && args.some((arg) => ["--get", "--get-all", "--get-regexp", "--list", "-l"].includes(arg))) return undefined;
   if (action === "remote" && !args.some((arg) => ["add", "remove", "rename", "set-url"].includes(arg))) return undefined;
-  if (action === "stash" && (!args[0] || ["list", "show"].includes(args[0]))) return undefined;
+  if (action === "stash" && ["list", "show"].includes(args[0])) return undefined;
   if (action === "tag" && !args.some((arg) => arg === "--delete" || arg.startsWith("--delete=") || /^-d.+/.test(arg) || arg === "-d")) return undefined;
   if (action === "worktree" && (!args[0] || args[0] === "list")) return undefined;
   return action;
@@ -397,12 +477,15 @@ export function dangerousCommandReason(command) {
   return undefined;
 }
 
-export function sensitivePathReason(absolutePath, homeDirectory) {
+export function sensitivePathReason(absolutePath, homeDirectory, piAgentDirectory) {
   if (typeof absolutePath !== "string" || !absolutePath) return undefined;
   const normalized = normalize(absolutePath);
   const portable = normalized.split(sep).join("/");
   const home = typeof homeDirectory === "string" ? normalize(homeDirectory).split(sep).join("/").replace(/\/$/, "") : "";
   const relativeHome = home && portable.startsWith(`${home}/`) ? portable.slice(home.length + 1) : "";
+  const agentDirectory = typeof piAgentDirectory === "string" && piAgentDirectory
+    ? normalize(piAgentDirectory).split(sep).join("/").replace(/\/$/, "")
+    : home ? `${home}/.pi/agent` : "";
   const base = basename(normalized).toLowerCase();
 
   if (base === ".git" || /(?:^|\/)\.git\/(?:hooks(?:\/|$)|config(?:\.worktree)?$|credentials$)/.test(portable)) {
@@ -410,6 +493,9 @@ export function sensitivePathReason(absolutePath, homeDirectory) {
   }
   if (base === ".env" || base.startsWith(".env.") || [".netrc", ".npmrc", ".pypirc"].includes(base)) {
     return "environment or credential file";
+  }
+  if (agentDirectory && (portable === agentDirectory || portable.startsWith(`${agentDirectory}/`))) {
+    return "Pi agent configuration or consent file";
   }
   if (relativeHome && /^(?:\.ssh|\.aws|\.gnupg|\.kube)(?:\/|$)/.test(relativeHome)) return "credential store";
   if (relativeHome && /^(?:\.config\/gh|\.docker)(?:\/|$)/.test(relativeHome)) return "credential-bearing configuration";
