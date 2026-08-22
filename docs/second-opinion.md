@@ -2,11 +2,11 @@
 
 ## Entry points
 
-`/second-opinion <focus>` is a prompt alias for the `second-opinion` skill. The current parent model first resolves the strongest supportable subject, inspects only relevant evidence, distinguishes verified facts from assumptions and gaps, redacts unnecessary private material, and prepares counterexample and falsification questions. It then calls `convene_expert_panel` once.
+`/second-opinion <focus>` is a prompt alias for the `second-opinion` skill. The current parent model first resolves the strongest supportable subject, inspects only relevant evidence, distinguishes verified facts from assumptions and gaps, redacts unnecessary private material, and prepares counterexample and falsification questions. It first asks `convene_opt_in_expert_panel` to apply persistent trusted-project or session consent. If automatic consent is unavailable, it calls the editable `convene_expert_panel` fallback itself. A launched operation is collected through `await_expert_panel`; the user never has to invoke another command or relay a run ID.
 
 `/expert-panel <artifact>` skips parent-model preparation and immediately enters the guarded preflight for an artifact that is already self-contained. With no argument, it selects the latest non-empty assistant text block. Immediate means no preparation turn; it does not bypass provider confirmation or send the artifact before consent.
 
-Both paths refuse payloads above 200,000 characters instead of truncating them silently. Both paths require the digest-bound confirmation before launch. The prepared path additionally opens its rendered brief in an editor before that confirmation; the immediate path confirms the exact artifact supplied to the command.
+Every path refuses payloads above 200,000 characters instead of truncating them silently. Manual prepared and immediate paths require digest-bound confirmation before launch; the manual prepared path additionally opens its rendered brief in an editor. Persistent trusted-project and one-shot session consent intentionally replace those per-run dialogs for sanitized payloads while retaining the scanner, fixed chain, runtime checks, and isolation preflights.
 
 ## Prepared brief
 
@@ -19,21 +19,21 @@ The skill supplies six explicit fields to the tool:
 - assumptions, uncertainties, and evidence gaps;
 - ordered questions for the panel.
 
-Before calling the tool, the parent shows a concise preparation note. The tool then opens the exact rendered payload in an editor so the user can inspect, redact, accept, or cancel it. Missing evidence remains labelled rather than invented. The accepted brief, not the parent conversation or project context, becomes the chain task.
+Before calling a launcher, the parent shows a concise preparation note. Missing evidence remains labelled rather than invented. Under persistent or session automatic consent, the scanner evaluates the rendered brief and no per-run editor opens. Under manual fallback, the tool opens that exact payload so the user can inspect, redact, accept, or cancel it. The accepted brief, never parent conversation or project context, becomes the chain task.
 
 ## Disclosure
 
 Before launch, Pi Forge validates the generated chain digest, verifies that the active RPC responder is exactly pi-subagents 0.37.2, and preflights every effective agent contract. It rejects user/project shadowing, context inheritance, fallback models, extra skills, ambient extensions, or tools beyond `structured_output`. The preflight runs again after consent, immediately before spawn.
 
-The user then sees:
+On a manual launch, the user then sees:
 
-- the exact editable payload when the skill path is used;
+- the exact editable payload when the prepared skill path is used;
 - accepted payload size and SHA-256 digest;
 - all four panelist provider and model IDs;
 - the separate OpenAI synthesis call and its inputs;
 - excluded context and capabilities.
 
-Cancellation launches no child.
+Persistent enrollment discloses the fixed providers, synthesis, maximum calls, headless trusted-project scope, scanner limits, and revocation once; later matching sanitized operations do not repeat the dialogs. Cancellation of a manual launch creates no child.
 
 ## Independent review
 
@@ -62,20 +62,24 @@ Critics are instructed not to self-identify, but arbitrary text cannot make anon
 
 The synthesizer first reconstructs the strongest supportable steelman. It separates consensus, disagreement, priority findings, discarded claims, and evidence still needed. Only challenges supported by the artifact or a concrete falsification path become priority findings; unsupported, performative, duplicate, or missing-context attacks are discarded with reasons. Agreement and majority vote are not proof, and an accepted artifact may produce no priority findings. A panel result, including agreement or surviving challenges, does not independently verify facts or prove correctness or causality. Synthesis uses `openai-codex/gpt-5.6-sol` in the initial implementation.
 
-## Session opt-in automatic path
+## Automatic consent and correlated operations
 
-`/auto-panel enable` opens a standing-consent dialog that names the fixed providers, OpenAI synthesis, five model calls, one-shot scope, lack of a per-run editor or confirmation, scanner limitations, reset behavior, and inability to revoke calls after spawn. Decline or headless use leaves the mode disabled. `/auto-panel status` reports state; `/auto-panel disable` revokes an unused grant.
+`/auto-panel enable` retains the memory-only one-shot session grant. It names the fixed providers, OpenAI synthesis, five model calls, lack of per-run dialogs, scanner limits, reset behavior, and inability to revoke calls after spawn. A direct complete protected Socratic recommendation mints the same current-turn receipt; the first session automatic attempt consumes the receipt and then the grant. Session mode remains interactive, resets on session start or `/reload`, never retries, and is managed with `/auto-panel status` and `/auto-panel disable`.
 
-The grant exists only in extension memory and resets on session start or `/reload`. A direct protected `pi-forge.socratic-analyst` call that returns a complete Second Opinion recommendation while the grant is enabled mints a receipt bound to the exact tool-result input and a digest of its task and output. The receipt remains valid only during the current parent agent run; the next user `input` event clears it. The first automatic tool attempt consumes that receipt. The automatic tool requires the same prepared fields plus literal `classification: sanitized`. It rejects obvious private-key, credential, provider-token, personal-email, and private-path patterns without echoing the rejected content. These checks are heuristics and do not prove sanitization; headless or payload-policy rejection requires a fresh Socratic recommendation before another automatic attempt.
+`/auto-panel enable persistent` creates a user-level mode-0600 consent record beneath the effective Pi agent directory. Persistent enrollment is unavailable on Windows because Node cannot durably fsync directory metadata there; manual and one-shot session consent remain available. The one-time dialog discloses that the grant applies to every project for which `ctx.isProjectTrusted()` is true, including headless runs; that trusted-project agents may initiate disclosure; that one normal operation makes five model calls; and that one bounded replacement may raise the total to ten calls. The record is bound to the exact provider roster, generated chain digest, pi-subagents runtime, synthesizer, scanner patterns, one-active-operation limit, proof-gated retry, and unknown-launch policy. Contract drift makes it stale rather than silently widening consent. Consent is reloaded with project trust and session ownership adjacent to each persistent spawn. `/auto-panel disable persistent` deletes the exact record and prevents future launches; it cannot recall calls already spawned.
 
-An accepted payload consumes the grant before runtime validation or RPC work. The automatic path uses the same generated chain, runtime pin, ping, and two isolation preflights, but skips the payload editor and per-run digest confirmation under the prior standing consent. Failure, cancellation, abort, and unknown acknowledgement remain consumed and are never retried automatically. The one-shot state and protected Socratic receipt prevent recursive automatic panels. Existing manual paths do not consult this state and retain their full consent flow.
+Persistent mode does not require a Socratic receipt, so Plan Forge, PR Review, Second Opinion, and other parent-owned trusted-project workflows can submit a truthfully sanitized prepared brief directly. It allows only one active persistent operation per Pi session. Session mode retains its direct Socratic receipt requirement. Both automatic modes require literal `classification: sanitized` and reject obvious private-key, credential, provider-token, personal-email, and private-path shapes without echoing rejected content. The checks are heuristics, not proof of privacy. Persistent payload rejection leaves the durable grant available for a corrected payload; session rejection consumes the recommendation receipt.
+
+Every acknowledged launcher requires a canonical run ID and returns an opaque operation ID. `await_expert_panel` waits on that exact same-session operation and returns the final synthesis as untrusted evidence, never instructions, so parent agents do not ask users to relay run IDs or scrape Herdr panes. An aborted or timed-out await leaves work active and may safely be repeated with the same operation ID; reconvening is never recovery. The extension retains the 20 newest settled results in session memory and returns an explicit `expired` diagnosis for a recently pruned ID. Pi Forge registers the logical operation through pi-subagents' background-work v1 registry; headless auto-drain and `subagent_wait` therefore do not lose the gap between a failed first run and its replacement.
+
+A persistent operation retries the full fixed chain at most once, only after a normal pi-subagents lifecycle-v3 result definitively reports `success: false`, state `failed`, structured child results, and the exact owning session ID. Paused, stopped, malformed, stale-reconciled, missing-terminal-proof, unknown-acknowledgement, foreign-session, or session-changed outcomes never retry. Consent and project trust are rechecked before the replacement preflight and adjacent to spawn. A negative, run-ID-less, timed-out, aborted, or synchronously failed post-emission acknowledgement is unknown and atomically changes the persistent record to a blocked state, fsyncing both the record and its containing directory before reporting success. Automatic launches remain unavailable until the user inspects the owning fleet and interactively re-enables persistent consent. The model never performs retry itself. Manual and one-shot session operations remain single-attempt. Operation correlation and retry targets stay in extension memory: the consent survives `/reload`, but an already-running pre-reload operation must be inspected through its original pi-subagents run because `await_expert_panel` cannot reconstruct the redacted retry target.
 
 ## Failure behavior
 
-The parallel group does not fail fast, so every provider gets a chance to answer. A missing or schema-invalid report prevents a complete synthesis; it is never treated as agreement or silently omitted.
+The parallel group does not fail fast, so every provider gets a chance to answer. A missing or schema-invalid report prevents a complete synthesis; it is never treated as agreement or silently omitted. Under persistent consent, that definite normal-run failure may consume the one replacement attempt. If the replacement also fails, its result is final. Launch acknowledgement uncertainty and repaired stale state remain unknown or failed without retry because a provider call might still exist. Unknown launch acknowledgement also blocks persistent automation; `/auto-panel status` exposes that state, and re-enrollment warns that the fleet must be reconciled first. An enabled persistent grant in an untrusted project does not suppress a separately granted, receipt-bound one-shot session launch.
 
 ## Security boundary
 
-This workflow provides conversational and data isolation. It is not an OS sandbox. The critics have no filesystem, shell, or network tools, so they cannot read or execute local files, but the supplied artifact is transmitted to each configured provider. The internal structured-output tool has no general filesystem capability. Automatic mode replaces exact-payload consent with bounded standing consent; a model can misclassify sensitive content and the local scanner can miss it.
+This workflow provides conversational and data isolation. It is not an OS sandbox. The critics have no filesystem, shell, or network tools, so they cannot read or execute local files, but the supplied artifact is transmitted to each configured provider. The internal structured-output tool has no general filesystem capability. Automatic modes replace exact-payload consent with standing consent; a model can misclassify sensitive content and the local scanner can miss it. Pi project trust is an input-loading and consent signal, not containment against repository prompt injection or same-user processes.
 
 Pi-subagents RPC v1 cannot atomically bind a preflight digest to spawn. Pi Forge therefore assumes trusted local configuration and no concurrent mutation of package, agent, or settings files during the few instructions between the final preflight and spawn. A local actor able to mutate those files can also modify Pi Forge itself and is outside this boundary.

@@ -2,7 +2,9 @@
 // ABOUTME: Exercises exact Pi event payload shapes without executing mutations or shell commands.
 
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
+import { mkdirSync } from "node:fs";
+import { chmod, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -14,9 +16,13 @@ import {
   isSourcePath,
   isStandingAuthorizedBranchPush,
   isStandingAuthorizedPullRequestCreate,
+  parseStandingAuthorizedBranchCreate,
+  parseStandingAuthorizedWorktreeCreate,
   isVerificationCommand,
   sensitivePathReason,
 } from "../src/lifecycle-policy.js";
+
+const NEUTRALIZED_GIT = "git -c core.hooksPath= -c core.fsmonitor=false";
 
 test("verification recognition is conservative and rejects masked shell results", () => {
   for (const command of [
@@ -63,6 +69,9 @@ test("Git command classification catches common wrappers without matching quoted
   assert.deepEqual(findGitMutations("gh pr create --repo owner/repo --base main --head feat/x --title x --body body").map((item) => item.action), ["pr-create"]);
   assert.deepEqual(findGitMutations("gh -R owner/repo pr create --base main --head feat/x --title x --body body").map((item) => item.action), ["pr-create"]);
   assert.deepEqual(findGitMutations("git reset --hard HEAD").map((item) => item.kind), ["destructive"]);
+  assert.deepEqual(findGitMutations("git branch topic").map((item) => item.kind), ["destructive"]);
+  assert.deepEqual(findGitMutations("git switch -c feat/topic").map((item) => item.kind), ["destructive"]);
+  assert.deepEqual(findGitMutations("git worktree add -b feat/topic /tmp/topic HEAD").map((item) => item.kind), ["destructive"]);
   for (const command of [
     "git branch --delete topic",
     "git branch -df topic",
@@ -72,6 +81,8 @@ test("Git command classification catches common wrappers without matching quoted
     "git worktree remove /tmp/w",
   ]) assert.deepEqual(findGitMutations(command).map((item) => item.kind), ["destructive"], command);
   assert.deepEqual(findGitMutations("git status --short"), []);
+  assert.deepEqual(findGitMutations("git branch --show-current"), []);
+  assert.deepEqual(findGitMutations("git branch --list"), []);
   assert.deepEqual(findGitMutations("git worktree list"), []);
   assert.deepEqual(findGitMutations("echo 'git commit is blocked'"), []);
 
@@ -88,7 +99,17 @@ test("sensitive path classification is exact enough for credentials and Git cont
   assert.equal(sensitivePathReason("/repo/src/config.ts", homedir()), undefined);
 });
 
-function harness(options: { confirm?: boolean; cwd?: string; branch?: string; existingBranch?: boolean; cleanWorktree?: boolean } = {}) {
+function harness(options: {
+  confirm?: boolean;
+  cwd?: string;
+  branch?: string;
+  existingBranch?: boolean;
+  cleanWorktree?: boolean;
+  newBranchExists?: boolean;
+  validNewBranch?: boolean;
+  projectRoot?: string;
+  afterProjectRootLookup?: () => void;
+} = {}) {
   const handlers = new Map<string, (...args: any[]) => any>();
   const entries: Array<{ type: string; data: any }> = [];
   const messages: any[] = [];
@@ -104,10 +125,23 @@ function harness(options: { confirm?: boolean; cwd?: string; branch?: string; ex
         return { stdout: `${branch}\n`, stderr: "", code: branch ? 0 : 1, killed: false };
       }
       if (args[0] === "show-ref") {
-        assert.deepEqual(args, ["show-ref", "--verify", "--quiet", `refs/heads/${branch}`]);
-        return { stdout: "", stderr: "", code: options.existingBranch === false ? 1 : 0, killed: false };
+        assert.deepEqual(args.slice(0, 3), ["show-ref", "--verify", "--quiet"]);
+        const requested = String(args[3]).replace(/^refs\/heads\//, "");
+        const code = requested === branch
+          ? options.existingBranch === false ? 1 : 0
+          : options.newBranchExists === true ? 0 : 1;
+        return { stdout: "", stderr: "", code, killed: false };
       }
-      assert.deepEqual(args, ["status", "--porcelain=v1", "--untracked-files=all"]);
+      if (args[0] === "check-ref-format") {
+        assert.equal(args[1], "--branch");
+        return { stdout: "", stderr: "", code: options.validNewBranch === false ? 1 : 0, killed: false };
+      }
+      if (args[0] === "rev-parse") {
+        assert.deepEqual(args, ["rev-parse", "--show-toplevel"]);
+        options.afterProjectRootLookup?.();
+        return { stdout: `${options.projectRoot ?? options.cwd ?? "/tmp/pi-forge-lifecycle"}\n`, stderr: "", code: 0, killed: false };
+      }
+      assert.deepEqual(args, ["-c", "core.fsmonitor=false", "status", "--porcelain=v1", "--untracked-files=all"]);
       return { stdout: options.cleanWorktree === false ? " M src/index.ts\n" : "", stderr: "", code: 0, killed: false };
     },
   } as any);
@@ -121,11 +155,36 @@ function harness(options: { confirm?: boolean; cwd?: string; branch?: string; ex
   return { handlers, entries, messages, context };
 }
 
-test("standing authorization accepts only exact non-primary push and PR-create forms", async () => {
+test("standing authorization accepts only exact branch, worktree, push, and PR-create forms", async () => {
   assert.equal(isPrimaryBranch("dev"), true);
   assert.equal(isPrimaryBranch("main"), true);
   assert.equal(isPrimaryBranch("master"), true);
   assert.equal(isPrimaryBranch("feat/test"), false);
+
+  assert.deepEqual(parseStandingAuthorizedBranchCreate(`${NEUTRALIZED_GIT} switch -c feat/new-work`), { branch: "feat/new-work" });
+  for (const command of [
+    "git switch -c feat/new-work",
+    `${NEUTRALIZED_GIT} switch feat/existing`,
+    `${NEUTRALIZED_GIT} switch --create feat/new-work`,
+    `${NEUTRALIZED_GIT} checkout -b feat/new-work`,
+    `${NEUTRALIZED_GIT} switch -c main`,
+    "git -c core.fsmonitor=false -c core.hooksPath= switch -c feat/new-work",
+    `${NEUTRALIZED_GIT} switch -c feat/new-work && echo changed`,
+  ]) assert.equal(parseStandingAuthorizedBranchCreate(command), undefined, command);
+
+  assert.deepEqual(
+    parseStandingAuthorizedWorktreeCreate(`${NEUTRALIZED_GIT} worktree add -b feat/isolated /tmp/pi-forge-isolated HEAD`),
+    { branch: "feat/isolated", targetPath: "/tmp/pi-forge-isolated" },
+  );
+  for (const command of [
+    "git worktree add -b feat/isolated /tmp/pi-forge-isolated HEAD",
+    `${NEUTRALIZED_GIT} worktree add /tmp/pi-forge-isolated feat/existing`,
+    `${NEUTRALIZED_GIT} worktree add -b main /tmp/pi-forge-isolated HEAD`,
+    `${NEUTRALIZED_GIT} worktree add -b feat/isolated relative/path HEAD`,
+    `${NEUTRALIZED_GIT} worktree add -b feat/isolated /tmp/pi-forge-isolated origin/main`,
+    `${NEUTRALIZED_GIT} worktree add -B feat/isolated /tmp/pi-forge-isolated HEAD`,
+    "git -c core.fsmonitor=false -c core.hooksPath= worktree add -b feat/isolated /tmp/pi-forge-isolated HEAD",
+  ]) assert.equal(parseStandingAuthorizedWorktreeCreate(command), undefined, command);
 
   const push = "git -c push.followTags=false -c push.gpgSign=false -c push.pushOption= -c push.recurseSubmodules=no -c push.useForceIfIncludes=false push -u origin refs/heads/feat/test:refs/heads/feat/test";
   assert.equal(isStandingAuthorizedBranchPush(push, "feat/test"), true);
@@ -155,6 +214,121 @@ test("standing authorization accepts only exact non-primary push and PR-create f
     `${pr} && gh pr merge`,
   ]) assert.equal(isStandingAuthorizedPullRequestCreate(command, "feat/test"), false, command);
   assert.equal(isStandingAuthorizedPullRequestCreate(pr, "dev"), false);
+});
+
+test("canonical standing-authorized branch and worktree commands work against real Git", async () => {
+  const root = await mkdtemp(join(tmpdir(), "pi-forge-lifecycle-git-"));
+  const repository = join(root, "repository");
+  const worktree = join(root, "isolated");
+  const git = (cwd: string, ...args: string[]) => {
+    const result = spawnSync("git", args, { cwd, encoding: "utf8" });
+    assert.equal(result.status, 0, `${args.join(" ")}: ${result.stderr || result.stdout}`);
+    return result.stdout.trim();
+  };
+  try {
+    await mkdir(repository);
+    git(repository, "init", "-b", "main");
+    git(repository, "config", "user.name", "Pi Forge Test");
+    git(repository, "config", "user.email", "pi-forge@example.invalid");
+    await writeFile(join(repository, "tracked.txt"), "initial\n");
+    git(repository, "add", "tracked.txt");
+    git(repository, "commit", "-m", "initial");
+    const hookMarker = join(root, "post-checkout-ran");
+    const hook = join(repository, ".git", "hooks", "post-checkout");
+    await writeFile(hook, `#!/bin/sh\nprintf ran > ${JSON.stringify(hookMarker)}\n`);
+    await chmod(hook, 0o755);
+
+    await writeFile(join(repository, "tracked.txt"), "task change\n");
+    const branchCommand = `${NEUTRALIZED_GIT} switch -c feat/real-branch`;
+    assert.deepEqual(parseStandingAuthorizedBranchCreate(branchCommand), { branch: "feat/real-branch" });
+    git(repository, "-c", "core.hooksPath=", "-c", "core.fsmonitor=false", "switch", "-c", "feat/real-branch");
+    assert.equal(git(repository, "branch", "--show-current"), "feat/real-branch");
+    assert.equal(await readFile(join(repository, "tracked.txt"), "utf8"), "task change\n");
+    await assert.rejects(() => readFile(hookMarker), (error: any) => error?.code === "ENOENT");
+    git(repository, "add", "tracked.txt");
+    git(repository, "commit", "-m", "task change");
+
+    const worktreeCommand = `${NEUTRALIZED_GIT} worktree add -b feat/real-worktree ${worktree} HEAD`;
+    assert.deepEqual(parseStandingAuthorizedWorktreeCreate(worktreeCommand), {
+      branch: "feat/real-worktree",
+      targetPath: worktree,
+    });
+    git(repository, "-c", "core.hooksPath=", "-c", "core.fsmonitor=false", "worktree", "add", "-b", "feat/real-worktree", worktree, "HEAD");
+    assert.equal(git(worktree, "branch", "--show-current"), "feat/real-worktree");
+    assert.equal(await readFile(join(worktree, "tracked.txt"), "utf8"), "task change\n");
+    await assert.rejects(() => readFile(hookMarker), (error: any) => error?.code === "ENOENT");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("lifecycle standing authorization creates only a fresh non-primary branch or isolated worktree", async () => {
+  const projectRoot = await mkdtemp(join(tmpdir(), "pi-forge-lifecycle-project-"));
+  const worktreeBase = await mkdtemp(join(tmpdir(), "pi-forge-lifecycle-worktrees-"));
+  try {
+    const target = join(worktreeBase, "isolated");
+    const runtime = harness({ cwd: projectRoot, projectRoot, branch: "main" });
+    const call = runtime.handlers.get("tool_call")!;
+    assert.equal(await call({
+      toolName: "bash",
+      input: { command: `${NEUTRALIZED_GIT} switch -c feat/new-work` },
+    }, runtime.context), undefined);
+    assert.equal(await call({
+      toolName: "bash",
+      input: { command: `${NEUTRALIZED_GIT} worktree add -b feat/isolated ${target} HEAD` },
+    }, runtime.context), undefined);
+
+    const dirty = harness({ cwd: projectRoot, projectRoot, branch: "main", cleanWorktree: false });
+    assert.equal(await dirty.handlers.get("tool_call")!({
+      toolName: "bash",
+      input: { command: `${NEUTRALIZED_GIT} switch -c feat/dirty` },
+    }, dirty.context), undefined);
+    assert.match((await dirty.handlers.get("tool_call")!({
+      toolName: "bash",
+      input: { command: `${NEUTRALIZED_GIT} worktree add -b feat/dirty-worktree ${join(worktreeBase, "dirty")} HEAD` },
+    }, dirty.context)).reason, /interactive confirmation/);
+
+    const existingBranch = harness({ cwd: projectRoot, projectRoot, branch: "main", newBranchExists: true });
+    assert.match((await existingBranch.handlers.get("tool_call")!({
+      toolName: "bash",
+      input: { command: `${NEUTRALIZED_GIT} switch -c feat/existing` },
+    }, existingBranch.context)).reason, /interactive confirmation/);
+
+    const existingTarget = join(worktreeBase, "existing");
+    await mkdir(existingTarget);
+    assert.match((await call({
+      toolName: "bash",
+      input: { command: `${NEUTRALIZED_GIT} worktree add -b feat/existing-target ${existingTarget} HEAD` },
+    }, runtime.context)).reason, /interactive confirmation/);
+    assert.match((await call({
+      toolName: "bash",
+      input: { command: `${NEUTRALIZED_GIT} worktree add -b feat/nested ${join(projectRoot, "nested-worktree")} HEAD` },
+    }, runtime.context)).reason, /interactive confirmation/);
+    assert.match((await call({
+      toolName: "bash",
+      input: { command: `${NEUTRALIZED_GIT} worktree add -b feat/outside-allowed-roots /etc/pi-forge-worktree-fixture HEAD` },
+    }, runtime.context)).reason, /interactive confirmation/);
+
+    const racedTarget = join(worktreeBase, "raced-target");
+    const raced = harness({
+      cwd: projectRoot,
+      projectRoot,
+      branch: "main",
+      afterProjectRootLookup: () => mkdirSync(racedTarget),
+    });
+    assert.match((await raced.handlers.get("tool_call")!({
+      toolName: "bash",
+      input: { command: `${NEUTRALIZED_GIT} worktree add -b feat/raced-target ${racedTarget} HEAD` },
+    }, raced.context)).reason, /interactive confirmation/);
+
+    assert.match((await call({
+      toolName: "bash",
+      input: { command: "git switch --create feat/noncanonical" },
+    }, runtime.context)).reason, /interactive confirmation/);
+  } finally {
+    await rm(projectRoot, { recursive: true, force: true });
+    await rm(worktreeBase, { recursive: true, force: true });
+  }
 });
 
 test("lifecycle blocks direct commits and gates remote or destructive mutations", async () => {

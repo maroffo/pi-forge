@@ -155,6 +155,53 @@ function isExplicitRepository(value) {
     && parts.every((part) => /^[A-Za-z0-9][A-Za-z0-9.-]*$/.test(part) && part !== "." && part !== "..");
 }
 
+export function parseStandingAuthorizedBranchCreate(command) {
+  const invocation = directInvocation(command);
+  if (!invocation || invocation.words[0] !== "git") return undefined;
+  const words = invocation.words;
+  if (
+    words.length !== 8
+    || words[1] !== "-c"
+    || words[2] !== "core.hooksPath="
+    || words[3] !== "-c"
+    || words[4] !== "core.fsmonitor=false"
+    || words[5]?.toLowerCase() !== "switch"
+    || words[6] !== "-c"
+    || !isSafeRefName(words[7])
+    || isPrimaryBranch(words[7])
+  ) return undefined;
+  return { branch: words[7] };
+}
+
+export function parseStandingAuthorizedWorktreeCreate(command) {
+  const invocation = directInvocation(command);
+  if (!invocation || invocation.words[0] !== "git") return undefined;
+  const words = invocation.words;
+  const branch = words[8];
+  const targetPath = words[9];
+  if (
+    words.length !== 11
+    || words[1] !== "-c"
+    || words[2] !== "core.hooksPath="
+    || words[3] !== "-c"
+    || words[4] !== "core.fsmonitor=false"
+    || words[5]?.toLowerCase() !== "worktree"
+    || words[6]?.toLowerCase() !== "add"
+    || words[7] !== "-b"
+    || !isSafeRefName(branch)
+    || isPrimaryBranch(branch)
+    || typeof targetPath !== "string"
+    || targetPath.length === 0
+    || targetPath.length > 4_096
+    || !isAbsolute(targetPath)
+    || hasUnsafeShellExpansion(targetPath)
+    || words[10] !== "HEAD"
+  ) return undefined;
+  const normalizedTarget = resolve(targetPath);
+  if (normalizedTarget === resolve(normalizedTarget, "..")) return undefined;
+  return { branch, targetPath: normalizedTarget };
+}
+
 export function isStandingAuthorizedBranchPush(command, currentBranch) {
   if (
     typeof currentBranch !== "string"
@@ -290,12 +337,13 @@ function gitAction(words, start) {
   }
   const action = (words[index] ?? "").toLowerCase();
   const args = words.slice(index + 1);
-  if (
-    action === "branch"
-    && !args.some((arg) => ["--copy", "--delete", "--move"].includes(arg)
-      || /^(?:--copy|--delete|--move)=/.test(arg)
-      || /^-[A-Za-z]*[cCdDmM][A-Za-z]*$/.test(arg))
-  ) return undefined;
+  if (action === "branch") {
+    const readOnly = new Set([
+      "--all", "--contains", "--list", "--merged", "--no-contains", "--no-merged",
+      "--remotes", "--show-current", "-a", "-l", "-r",
+    ]);
+    if (!args[0] || readOnly.has(args[0])) return undefined;
+  }
   if (action === "config" && args.some((arg) => ["--get", "--get-all", "--get-regexp", "--list", "-l"].includes(arg))) return undefined;
   if (action === "remote" && !args.some((arg) => ["add", "remove", "rename", "set-url"].includes(arg))) return undefined;
   if (action === "stash" && (!args[0] || ["list", "show"].includes(args[0]))) return undefined;

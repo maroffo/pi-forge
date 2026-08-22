@@ -28,8 +28,9 @@
 
 - Never bypass hooks.
 - Never commit directly on dev, main, or master without explicit authorization.
-- On other branches, coherent task commits, an exact same-name branch push, and opening one PR are standing-authorized after fresh verification.
-- Never force-push, mutate tags, delete refs, merge, switch or create branches, or modify/close/merge a PR without explicit authorization.
+- A requested change standing-authorizes one exact fresh non-primary destination: `git -c core.hooksPath= -c core.fsmonitor=false switch -c <branch>` at the current `HEAD`, or from a clean checkout `git -c core.hooksPath= -c core.fsmonitor=false worktree add -b <branch> <absolute-new-path> HEAD`.
+- On non-primary branches, coherent task commits, an exact same-name branch push, and opening one PR are standing-authorized after fresh verification.
+- Never commit or push a primary branch, force-push, mutate tags, delete refs, merge, switch an existing branch, perform any other branch/worktree mutation, or modify/close/merge a PR without explicit authorization.
 - Stage explicit files and use Conventional Commits.
 - Use the Pi Forge source-control gate for commits; direct Bash-tool commits are unsupported.
 

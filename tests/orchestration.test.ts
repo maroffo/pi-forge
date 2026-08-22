@@ -24,10 +24,14 @@ test("orchestrator keeps one writer and protected artifact-only review", async (
   const routing = await text("skills/orchestrator/references/review-routing.md");
 
   assert.match(skill, /name: orchestrator/);
-  assert.match(skill, /standing authorization to commit the coherent completed change through the source-control gate/);
+  assert.match(skill, /standing authorization to prepare one fresh non-primary destination/);
+  assert.match(skill, /git -c core\.hooksPath= -c core\.fsmonitor=false switch -c <branch>/);
+  assert.match(skill, /git -c core\.hooksPath= -c core\.fsmonitor=false worktree add -b <branch> <absolute-new-path> HEAD/);
+  assert.match(skill, /commit the coherent completed change through the source-control gate/);
   assert.match(skill, /push only that exact same-name branch/);
   assert.match(skill, /open one PR with explicit repository, base, head, title, and bounded inline body/);
-  assert.match(skill, /does not authorize creating or switching branches, primary-branch commits or pushes, force-push/);
+  assert.match(skill, /does not authorize primary-branch commits or pushes, force-push/);
+  assert.match(skill, /existing-branch switches, branch\/worktree deletion/);
   assert.match(skill, /Do not use raw pi-subagents RPC/);
   assert.match(skill, /Keep one writer per checkout/);
   assert.match(skill, /pi-forge\.software-engineer/);
@@ -308,14 +312,14 @@ test("plan-forge writes a self-contained plan without implicit implementation or
 
   assert.match(skill, /Do not implement the planned code/);
   assert.match(skill, /Every important mechanic in the plan needs a current `file:line` citation/);
-  assert.match(skill, /Pi slash commands are user entry points/);
-  assert.match(skill, /invoke `\/expert-panel` with that target/);
-  assert.match(skill, /discloses its fixed providers and obtains consent/);
-  assert.match(skill, /exact run ID from the notification/);
-  assert.match(skill, /If it is still active, return control instead of polling/);
+  assert.match(skill, /Do not ask the user to invoke `\/expert-panel` or return a run ID/);
+  assert.match(skill, /call `convene_opt_in_expert_panel` once/);
+  assert.match(skill, /capture its exact `operationId`, call `await_expert_panel`/);
+  assert.match(skill, /call `convene_expert_panel` once with the same prepared fields/);
+  assert.match(skill, /An await timeout means still active, not failed/);
   assert.match(skill, /Never imply that an opinion ran when it did not/);
   assert.match(skill, /Never overwrite an unrelated plan/);
-  assert.match(skill, /plan is the completed requested deliverable on an existing non-primary branch/);
+  assert.match(skill, /plan itself is the completed requested artifact on that or an already-current non-primary branch/);
   for (const section of [
     "## Locked decisions",
     "## Acceptance criteria",
@@ -327,9 +331,10 @@ test("plan-forge writes a self-contained plan without implicit implementation or
     "## Outcomes and retrospective",
   ]) assert.match(plan, new RegExp(section.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   assert.match(handoff, /\/orchestrator Implement/);
-  assert.match(handoff, /existing branch other than dev, main, or master/);
+  assert.match(handoff, /fresh non-primary destination is still needed/);
+  assert.match(handoff, /git -c core\.hooksPath= -c core\.fsmonitor=false switch -c <branch>/);
   assert.match(handoff, /pushed only to its exact same-name remote branch/);
-  assert.match(handoff, /Do not create or switch branches, commit or push a primary branch, force-push/);
+  assert.match(handoff, /Do not commit or push a primary branch, switch an existing branch/);
 });
 
 test("pr-review publishes an idempotent COMMENT review and gates candidate execution", async () => {
@@ -364,8 +369,11 @@ test("pr-review publishes an idempotent COMMENT review and gates candidate execu
   assert.match(skill, /strip the inherited environment/);
   assert.match(skill, /Protected reviewers cannot read the temp clone/);
   assert.match(skill, /provider other than the current one/);
-  assert.match(skill, /redacted, self-contained `\/expert-panel` target/);
-  assert.match(skill, /explicit consent still apply/);
+  assert.match(skill, /redacted, self-contained Expert Panel brief/);
+  assert.match(skill, /Never ask the user to invoke `\/expert-panel` or return a run ID/);
+  assert.match(skill, /call `convene_opt_in_expert_panel` once/);
+  assert.match(skill, /Capture the returned `operationId`, call `await_expert_panel`/);
+  assert.match(skill, /call `convene_expert_panel` once with the same prepared fields/);
   assert.match(skill, /Do not run broad cleanup globs/);
   assert.match(skill, /Never claim deterministic cleanup/);
   assert.match(candidateExecution, /Launch checkout, dependency, build, test, lint, generator, and project commands with `env -i`/);

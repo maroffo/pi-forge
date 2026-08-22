@@ -406,6 +406,55 @@ export default function (pi) {
   }
 }
 
+async function assertExpertPanelRuntime(packageRoot, configDir, temporaryRoot) {
+  const resultPath = join(temporaryRoot, "expert-panel-runtime.json");
+  const probePath = join(temporaryRoot, "expert-panel-runtime-probe.ts");
+  await writeFile(probePath, `import { writeFileSync } from "node:fs";
+export default function (pi) {
+  pi.on("session_start", () => {
+    const registry = globalThis[Symbol.for("pi-subagents.background-work.v1")];
+    const provider = registry?.providers instanceof Map
+      ? registry.providers.get("pi-forge.expert-panel")
+      : undefined;
+    writeFileSync(${JSON.stringify(resultPath)}, JSON.stringify({
+      registryVersion: registry?.version,
+      providerName: provider?.name,
+      wakeChannels: provider?.wakeChannels,
+      activeWork: typeof provider?.listActiveWork === "function" ? provider.listActiveWork() : null,
+      tools: pi.getAllTools().map((tool) => tool.name).sort(),
+    }));
+  });
+}
+`);
+  await run("pi", [
+    "--mode",
+    "rpc",
+    "--no-session",
+    "--extension",
+    probePath,
+  ], {
+    cwd: packageRoot,
+    env: minimalEnvironment(configDir),
+    input: `${JSON.stringify({ type: "get_commands" })}\n`,
+  });
+  const result = JSON.parse(await readFile(resultPath, "utf8"));
+  for (const name of ["await_expert_panel", "convene_expert_panel", "convene_opt_in_expert_panel"]) {
+    if (!result.tools.includes(name)) throw new Error(`Pi did not discover Expert Panel tool ${name}: ${JSON.stringify(result)}`);
+  }
+  if (
+    result.registryVersion !== 1
+    || result.providerName !== "pi-forge.expert-panel"
+    || !Array.isArray(result.activeWork)
+    || result.activeWork.length !== 0
+    || JSON.stringify(result.wakeChannels) !== JSON.stringify([
+      "subagent:async-complete",
+      "pi-forge:auto-panel-work-changed",
+    ])
+  ) {
+    throw new Error(`Expert Panel background-work registration drifted: ${JSON.stringify(result)}`);
+  }
+}
+
 async function assertExtensionDiscovery(packageRoot, configDir) {
   const { stdout } = await run("pi", ["--mode", "rpc", "--no-session"], {
     cwd: packageRoot,
@@ -1219,6 +1268,7 @@ async function main() {
     await assertSecondOpinionPromptExpansion(packageRoot, configDir, temporaryRoot);
     await assertSocraticPromptExpansion(packageRoot, configDir, temporaryRoot);
     await assertExtensionDiscovery(packageRoot, configDir);
+    await assertExpertPanelRuntime(packageRoot, configDir, temporaryRoot);
     await assertWriterContract(packageRoot, projectRoot, configDir, temporaryRoot);
     await assertReviewerContracts(packageRoot, projectRoot, configDir, temporaryRoot);
     await assertAgentPolicy(packageRoot, projectRoot, configDir, temporaryRoot);
@@ -1234,6 +1284,7 @@ async function main() {
       protectedAgentPolicy: "verified",
       projectMaintainerSkills: ["pi-forge-handbook", "pi-forge-harness-audit", "pi-forge-release"],
       automaticPanelCommand: "discovered-default-off",
+      expertPanelOperationRuntime: "tools-and-background-provider-discovered",
       herdrOrchestratorPrompt: "expanded-with-both-skills-and-aborted-before-provider",
       herdrNegativePromptIsolation: "ordinary-and-plain-prompt-text-did-not-explicitly-select-herdr",
       secondOpinionPrompt: "expanded-and-aborted-before-provider",

@@ -6,7 +6,7 @@ Prepare or accept one self-contained review artifact, disclose the exact multi-p
 
 ## Triggers
 
-The Socratic path starts from `socratic-analysis-skill` and may use `socratic-analyst-agent` to recommend escalation. By default that recommendation is non-authorizing; a separate session one-shot standing grant can authorize one automatic sanitized launch. The prepared path starts from the `second-opinion` skill and tool. The immediate path starts from the `expert-panel` command. Package planning and PR-review skills may direct users to the immediate path after they have already built a self-contained artifact.
+The Socratic path starts from `socratic-analysis-skill` and may use `socratic-analyst-agent` to recommend escalation. By default that recommendation is non-authorizing; either a session one-shot grant or persistent trusted-project consent may authorize a sanitized automatic launch. Prepared Second Opinion, Plan Forge, and PR Review call the automatic launcher directly and fall back to the editable manual tool when automatic consent is unavailable. The immediate manual path starts from the `expert-panel` command. Parent workflows capture operation IDs and await synthesis rather than directing users to relay run IDs.
 
 ## Inputs
 
@@ -14,15 +14,17 @@ The Socratic path receives an optional focus through `socratic-analysis-prompt`,
 
 ## Outputs
 
-A launch outcome is launched, cancelled, or unknown. Successful acknowledgement may include a canonical run ID. The asynchronous chain produces four structured perspectives followed by one synthesis.
+A launch outcome is launched, cancelled, or unknown. Successful acknowledgement must include a canonical run ID; a missing ID is unknown. The asynchronous chain produces four structured perspectives followed by one synthesis.
 
 ## State transitions
 
-Socratic analysis asks at most one material question per parent turn and launches only the protected artifact-only analyst. Manual escalation requires a separate explicit yes. Automatic escalation first requires an interactive, memory-only one-shot grant, then a direct complete protected Socratic recommendation that mints a one-attempt receipt bound to the exact tool result, literal sanitized classification, and `automatic-panel-payload-gate`; `automatic-panel-command-parser` constrains grant management. The receipt is cleared by the next user input or consumed on the first automatic tool attempt, while the grant is consumed before the shared launcher and never retried. Manual preparation validates substantive fields, renders the brief, and opens interactive review. At extension registration, the shared launcher captures, validates, and recursively freezes one chain snapshot with its imported integrity binding so a later checkout or in-process mutation cannot change revisions inside the same extension instance. Each launch revalidates that snapshot and the runtime, performs preflight and ping, requests digest-bound consent only for manual mode, repeats preflight, emits spawn, and classifies acknowledgement. Every critic uses the same steelman, weakest-dependency, counterexample, falsification-test, and surviving-judgment schema. Generated chain resources remain bound to canonical generator inputs.
+Socratic analysis asks at most one material question per parent turn and launches only the protected artifact-only analyst. Manual escalation requires a separate explicit yes. Session automatic escalation first requires an interactive memory-only one-shot grant, then a direct complete protected recommendation that mints a current-turn receipt bound to the exact tool result and literal sanitized classification. Persistent automation stores a private, file-and-directory-fsynced user-level record on supported non-Windows filesystems through `persistent-panel-consent-store`; `persistent-panel-consent-contract` binds it to providers, chain, pi-subagents runtime, synthesis, scanner, concurrency, proof-gated retry, and unknown-launch semantics. It applies only when Pi reports the project trusted, permits one active operation per session, and does not require a Socratic receipt. `automatic-panel-command-parser` constrains both grant scopes, while `automatic-panel-payload-gate` remains mandatory.
+
+Manual preparation validates substantive fields, renders the brief, and opens interactive review. At extension registration, the shared launcher captures, validates, and recursively freezes one chain snapshot with its imported integrity binding. Each launch revalidates that snapshot and runtime, performs preflight and ping, requests digest-bound consent only for manual mode, repeats preflight, emits spawn, and classifies acknowledgement. Acknowledged tool launches return a logical operation ID registered with background-work v1. Await resolves the exact same-session final synthesis and may safely be repeated for the same ID after a timeout or abort. Completion events require the exact owning session. Persistent mode may replace one definitively failed normal lifecycle-v3 run; paused, stopped, stale-repaired, malformed, unknown, foreign-session, session-changed, or pre-reload outcomes settle or remain ignored without retry. Unknown launch acknowledgement blocks persistent consent until fleet reconciliation and interactive re-enrollment. Consent persists across reload, while the redacted target and logical operation correlation intentionally remain memory-only. Every critic uses the same steelman, weakest-dependency, counterexample, falsification-test, and surviving-judgment schema. Generated chain resources remain bound to canonical generator inputs.
 
 ## Exceptional paths
 
-Missing UI, invalid brief content, runtime drift, shadowed agents, changed capabilities, failed ping, declined consent, pre-spawn abort, post-spawn abort, and acknowledgement timeout fail or return without automatic retry. Automatic mode additionally rejects missing standing grant, missing or stale protected recommendation receipt, reused grant, and obvious sensitive-data shapes. It consumes the receipt on the first tool attempt and the grant before launcher work, including known failure or uncertain acknowledgement. Post-emission uncertainty remains unknown because the run may already exist.
+Missing UI on manual/session paths, invalid brief content, runtime drift, shadowed agents, changed capabilities, failed ping, declined consent, pre-spawn abort, post-spawn abort, and acknowledgement timeout fail or return without model-driven retry. Session automatic mode additionally rejects missing or stale protected recommendation receipts and reused grants. Persistent mode rejects missing, malformed, stale, blocked, or unsafe consent records, untrusted projects, missing session identity, and an already-active operation. It reloads consent with trust and session ownership adjacent to spawn. Both reject obvious sensitive-data shapes. Post-emission uncertainty remains unknown because the run may already exist. Persistent replacement requires a normal lifecycle-v3 failed result with structured children and rechecks consent, trust, session ownership, runtime, and preflight before spawn.
 
 ## Source of truth
 
@@ -34,7 +36,7 @@ Canonical behavior begins at `socratic-analysis-skill`, `socratic-analysis-promp
 
 ## Tests
 
-The focused Socratic contract and escalation checks live in the mapped Socratic tests. The adversarial schema, generated behavior, launcher, and cancellation matrix live in the mapped second-opinion tests. Orchestration tests cover user-entry guidance. Runtime probes cover package prompt expansion, command discovery, preflight, consent cancellation, and upgrade compatibility.
+The focused Socratic contract and escalation checks live in the mapped Socratic tests. The adversarial schema, generated behavior, private persistent store, trust gate, operation await, proof-gated retry, launcher, and cancellation matrix live in the mapped second-opinion tests. Orchestration tests cover direct parent-tool guidance without user-relayed IDs. Runtime probes cover package prompt expansion, command discovery, preflight, consent cancellation, and upgrade compatibility.
 
 ## Registers
 
@@ -49,6 +51,8 @@ The focused Socratic contract and escalation checks live in the mapped Socratic 
 - `socratic-analyst-agent`
 - `automatic-panel-command-parser`
 - `automatic-panel-payload-gate`
+- `persistent-panel-consent-contract`
+- `persistent-panel-consent-store`
 - `second-opinion-skill`
 - `second-opinion-prompt`
 - `second-opinion-brief-builder`

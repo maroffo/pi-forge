@@ -10,9 +10,11 @@ Apply the repository's own working agreement first. This skill adds portable Git
 
 ## Commit contract
 
-A request to implement or change the repository carries standing authorization to create coherent local commits on the current non-primary branch after fresh verification. `dev`, `main`, and `master` are primary branches and always require explicit commit authorization. This standing authorization does not permit amending, changing branches, discarding changes, bypassing hooks, or committing unrelated work.
+A request to implement or change the repository carries standing authorization to prepare an isolated non-primary destination and deliver coherent work there. From an attached existing ref, it may atomically create and switch to one fresh non-primary branch at the current `HEAD` with exactly `git -c core.hooksPath= -c core.fsmonitor=false switch -c <new-branch>`; ordinary staged or unstaged task changes may remain because this same-commit switch preserves them. From a clean attached checkout, it may instead create one fresh non-primary worktree with exactly `git -c core.hooksPath= -c core.fsmonitor=false worktree add -b <new-branch> <absolute-nonexistent-path> HEAD`. The lifecycle gate requires a valid absent local branch, and for worktrees an absent canonical target outside the current project root, beneath its canonical parent or the OS temporary root, and outside common sensitive paths; target canonicalization and nonexistence are repeated after asynchronous Git checks immediately before the tool call is allowed. Existing-branch switches, other start points/options, relative or existing worktree targets, and worktree removal remain outside standing authorization.
 
-On an existing non-primary branch, it also authorizes an ordinary same-name branch push and opening one pull request for that delivered change. Keep both operations narrow: push only `refs/heads/<current>:refs/heads/<current>` to the selected remote, without force, tags, deletion, atomic mode, extra refspecs, or push options, and neutralize inherited push expansion with the exact `-c` settings documented below; create the PR with explicit repository, base, exact current head, title, and inline body. A primary-branch push, force-push, tag mutation, ref deletion, merge, branch creation or switch, PR update/close/merge, and every other remote mutation still require separate explicit authorization.
+After fresh verification, the request also authorizes coherent local commits on the resulting or already-current non-primary branch. `dev`, `main`, and `master` are primary branches and always require explicit commit authorization. Standing authorization never permits amend, discarding changes, bypassing hooks, committing unrelated work, or switching to an existing branch.
+
+On a non-primary branch, it authorizes an ordinary same-name branch push and opening one pull request for that delivered change. Keep both operations narrow: push only `refs/heads/<current>:refs/heads/<current>` to the selected remote, without force, tags, deletion, atomic mode, extra refspecs, or push options, and neutralize inherited push expansion with the exact `-c` settings documented below; create the PR with explicit repository, base, exact current head, title, and inline body. A primary-branch commit or push, force-push, tag mutation, ref deletion, merge, existing-branch switch, PR update/close/merge, worktree removal, and every other local or remote mutation still require separate explicit authorization.
 
 1. Inspect before mutating:
 
@@ -83,9 +85,16 @@ ci: test dependency upgrades
 
 Add a body when the reason, migration impact, or non-obvious tradeoff matters. Use `BREAKING CHANGE:` in the footer only for an intentional incompatible change.
 
-## Branches and history
+## Branches, worktrees, and history
 
-Prefer names such as `feat/session-export`, `fix/cache-race`, and `chore/update-deps`. Follow repository conventions when they differ.
+Prefer names such as `feat/session-export`, `fix/cache-race`, and `chore/update-deps`. Follow repository conventions when they differ. Create the branch or worktree before implementation when practical. The only standing-authorized preparation forms are:
+
+```bash
+git -c core.hooksPath= -c core.fsmonitor=false switch -c <fresh-non-primary-branch>
+git -c core.hooksPath= -c core.fsmonitor=false worktree add -b <fresh-non-primary-branch> <absolute-nonexistent-path> HEAD
+```
+
+Inspect the exact command and state first. Do not translate these into `checkout`, `branch`, `--create`, `-B`, `-C`, a composed shell command, a different start point, or an existing branch/path. Both forms neutralize checkout hooks and filesystem-monitor commands. The worktree form requires a clean current checkout; it still materializes tracked files and may invoke configured checkout filters, so it is standing-authorized only for the trusted-project workflow described here. The branch form may preserve task-owned staged and unstaged changes because it remains at the exact same `HEAD`. Branch deletion, worktree removal/prune/move/lock/unlock, switching existing branches, and cleanup remain separate decisions.
 
 Rebase only with authorization when it rewrites shared history. Use `--force-with-lease`, never bare `--force`, and only when the user explicitly approved the force-push. Resolve conflicts by understanding both sides, then rerun affected checks.
 

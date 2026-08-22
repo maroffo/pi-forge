@@ -36,7 +36,9 @@
         "socratic-analysis-doc",
         "socratic-analyst-agent",
         "automatic-panel-command-parser",
-        "automatic-panel-payload-gate"
+        "automatic-panel-payload-gate",
+        "persistent-panel-consent-contract",
+        "persistent-panel-consent-store"
       ],
       "testPaths": [
         "tests/orchestration.test.ts",
@@ -542,6 +544,18 @@
       "type": "code-declaration",
       "path": "extensions/second-opinion.ts",
       "identifier": "automaticPanelPayloadRejection"
+    },
+    {
+      "id": "persistent-panel-consent-contract",
+      "type": "code-declaration",
+      "path": "extensions/second-opinion.ts",
+      "identifier": "persistentAutoPanelConsentContractSha256"
+    },
+    {
+      "id": "persistent-panel-consent-store",
+      "type": "code-declaration",
+      "path": "extensions/second-opinion.ts",
+      "identifier": "createPersistentAutoPanelConsentStore"
     }
   ],
   "surfaces": [

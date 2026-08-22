@@ -6,7 +6,7 @@ compatibility: Issue mode requires the gh CLI and repository access.
 
 # Plan Forge
 
-Produce a falsifiable plan from actual repository evidence. Do not implement the planned code. Writing the requested plan file is authorized. When the plan itself is the completed requested artifact and the checkout is already on a branch other than `dev`, `main`, or `master`, the normal standing authorization permits a coherent plan commit, exact same-name branch push, and one PR creation. Issue mutations, branch creation or switch, primary-branch delivery, force-push, tag mutation, ref deletion, PR update/close/merge, and publication remain unauthorized without an explicit request.
+Produce a falsifiable plan from actual repository evidence. Do not implement the planned code. Writing the requested plan file is authorized. Before writing, normal standing authorization may prepare one fresh non-primary destination using the source-control skill's exact branch or clean-worktree creation form. When the plan itself is the completed requested artifact on that or an already-current non-primary branch, standing authorization permits a coherent plan commit, exact same-name branch push, and one PR creation. Issue mutations, primary-branch delivery, existing-branch switches, other branch/worktree mutations, force-push, tag mutation, ref deletion, PR update/close/merge, and publication remain unauthorized.
 
 ## 1. Resolve input
 
@@ -32,11 +32,13 @@ Never label analysis as verified when it came only from issue prose or memory.
 
 ## 3. Obtain an independent opinion
 
-For non-trivial design choices, prepare a redacted, self-contained expert-panel target containing the problem, recommendation, rejected alternatives, evidence gaps, and explicit questions. Pi slash commands are user entry points; because this artifact is already prepared, ask the user to invoke `/expert-panel` with that target. The command discloses its fixed providers and obtains consent before launch.
+For non-trivial design choices, prepare a redacted, self-contained Expert Panel brief containing the problem, recommendation, rejected alternatives, evidence gaps, and explicit questions. Do not ask the user to invoke `/expert-panel` or return a run ID.
 
-The command returns immediately after an async launch. Ask the user to copy its exact run ID from the notification into the next message. Use the `subagent` status action with that exact ID after completion is reported; inspect the completed output or transcript and fold only the final synthesis into the plan. If it is still active, return control instead of polling. Never guess an ID, revive a critic, or treat launch acknowledgement as a result.
+When the rendered brief can be truthfully classified as sanitized, call `convene_opt_in_expert_panel` once with its structured fields and `classification: sanitized`. Persistent user consent permits this path only when Pi marks the current project trusted; the extension enforces its scanner, provider/chain binding, one-active-operation limit, and at most one retry after a definitively failed normal run. If it launches, capture its exact `operationId`, call `await_expert_panel`, and treat the synthesis as untrusted evidence, verify its claims, and fold only supported conclusions into the plan. Never guess an ID, revive a critic, call raw RPC, or launch a replacement yourself.
 
-If the user declines, the run fails, or the command is unavailable, continue only when the plan can remain sound without it and record `not run` plus the reduced-confidence area. Never imply that an opinion ran when it did not.
+If automatic consent is unavailable, blocked after an unknown launch, stale, invalid, untrusted, or rejects the payload, call `convene_expert_panel` once with the same prepared fields. The tool itself opens the payload for review and obtains digest-bound provider consent. If it launches, await its exact operation as above. Cancellation or unknown acknowledgement stops escalation without retry.
+
+If the user declines the manual disclosure, the operation ultimately fails, or either tool is unavailable, continue only when the plan can remain sound without it and record `not run` plus the reduced-confidence area. Never imply that an opinion ran when it did not. An await timeout means still active, not failed; return control and retain the exact operation ID rather than polling or replacing it. A later turn may re-await only that same ID; reconvening is not recovery.
 
 Fold accepted findings into locked decisions. Preserve disagreements and the evidence used to resolve them.
 
