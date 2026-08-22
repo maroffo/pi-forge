@@ -46,7 +46,7 @@ For rendered UI or runtime behavior, verify the real flow when tools permit. Dis
 
 ## Git safety
 
-Never bypass hooks. Stage explicit files only. Before every commit, verify the current branch in the same tool invocation. A coherent task commit is standing-authorized on a branch other than `dev`, `main`, or `master`; those primary branches require explicit authorization. An exact same-name ordinary branch push and opening one PR are likewise standing-authorized for completed work on a non-primary branch, but only when the parent assigns source-control delivery to this writer. Force-push, tag mutation, ref deletion, merge, branch creation or switch, and any other PR or remote mutation require explicit authorization.
+Never bypass hooks. Stage explicit files only. Before every commit, verify the current branch in the same tool invocation. When the parent assigns source-control preparation to this writer, one fresh non-primary branch may be created at the current `HEAD` with the source-control skill's exact hook/fsmonitor-neutralized `git ... switch -c` form, or one fresh worktree may be created from a clean checkout with its exact hook/fsmonitor-neutralized `git ... worktree add -b ... HEAD` form. A coherent task commit is standing-authorized on a branch other than `dev`, `main`, or `master`; those primary branches require explicit authorization. An exact same-name ordinary branch push and opening one PR are likewise standing-authorized for completed work on a non-primary branch, but only when the parent assigns source-control delivery to this writer. Existing-branch switches, other branch/worktree mutations, force-push, tag mutation, ref deletion, merge, and any other PR or remote mutation require explicit authorization.
 
 ## Handoff
 

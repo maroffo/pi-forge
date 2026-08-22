@@ -292,7 +292,11 @@ test("source-control defines narrow standing delivery authorization", async () =
   const skill = await text("skills/source-control/SKILL.md");
 
   assert.match(skill, /name: source-control/);
-  assert.match(skill, /standing authorization to create coherent local commits on the current non-primary branch/);
+  assert.match(skill, /atomically create and switch to one fresh non-primary branch at the current `HEAD`/);
+  assert.match(skill, /git -c core\.hooksPath= -c core\.fsmonitor=false worktree add -b <new-branch> <absolute-nonexistent-path> HEAD/);
+  assert.match(skill, /ordinary staged or unstaged task changes may remain/);
+  assert.match(skill, /worktree form requires a clean current checkout/);
+  assert.match(skill, /authorizes coherent local commits on the resulting or already-current non-primary branch/);
   assert.match(skill, /Treat an existing index as protected/);
   assert.match(skill, /file containing mixed task and unrelated hunks/);
   assert.match(skill, /git apply --cached --check/);
@@ -306,7 +310,7 @@ test("source-control defines narrow standing delivery authorization", async () =
   assert.match(skill, /explicit `--repo <owner\/name>`.*nonempty inline `--body` of at most 10,000 characters/s);
   assert.match(skill, /Do not use `--body-file`/);
   assert.match(skill, /worktree and index must be clean/);
-  assert.match(skill, /force-push, tag mutation, ref deletion, merge, branch creation or switch/);
+  assert.match(skill, /existing-branch switch, PR update\/close\/merge, worktree removal/);
   assert.match(skill, /`dev`, `main`, or `master`/);
   assert.doesNotMatch(skill, /\bMax\b|Development\/private|make check/);
 });
@@ -317,7 +321,8 @@ test("commit prompt is a thin source-control alias", async () => {
   assert.match(prompt, /Load and follow the `source-control` skill/);
   assert.match(prompt, /Create exactly one local commit/);
   assert.match(prompt, /\$\{ARGUMENTS:-/);
-  assert.match(prompt, /standing authorization for the source-control skill's exact same-name branch push and one PR creation/);
+  assert.match(prompt, /exact `git -c core\.hooksPath= -c core\.fsmonitor=false switch -c <fresh-non-primary-branch>` preparation form is standing-authorized/);
+  assert.match(prompt, /standing authorization for the exact same-name branch push and one PR creation/);
   assert.match(prompt, /never stage a whole mixed file/);
   assert.match(prompt, /scripts\/commit-gate\.sh/);
   assert.match(prompt, /Never invoke `git commit` directly/);

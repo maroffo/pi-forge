@@ -7,8 +7,8 @@ Pi Forge targets equivalent outcomes and safety invariants through Pi-native mec
 | Capability | Claude Forge source | Pi Forge mechanism | Status |
 |---|---|---|---|
 | Working agreement | `CLAUDE.md.example` | installable `AGENTS.md.example` | Initial portable template |
-| Socratic analysis | `skills/refine-requirements/`, `skills/second-opinion/` | parent-owned one-question workflow, protected artifact-only analyst, manual escalation, and default-off one-shot session auto-panel consent | Implemented |
-| Second opinion | `skills/second-opinion/` | parent brief-building skill, guarded panel tool, immediate `/expert-panel`, common adversarial role, agents, and chain | Implemented and locally validated |
+| Socratic analysis | `skills/refine-requirements/`, `skills/second-opinion/` | parent-owned one-question workflow, protected artifact-only analyst, manual fallback, one-shot session consent, and persistent trusted-project panel autonomy | Implemented |
+| Second opinion | `skills/second-opinion/` | parent brief-building skill, guarded and persistent panel tools, correlated await, proof-gated retry, immediate `/expert-panel`, common adversarial role, agents, and chain | Implemented and locally validated |
 | Source control | `skills/source-control/`, `skills/commit/` | canonical skill plus `/commit` prompt alias | Implemented |
 | Requirements refinement | `skills/refine-requirements/` | conversational Pi skill | Implemented |
 | Implementation writer | `agents/software-engineer/` | scoped package agent plus internal contract skill | Implemented |

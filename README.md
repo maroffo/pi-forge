@@ -9,7 +9,7 @@ Pi Forge is a Pi-native sibling of Claude Forge. It targets functional parity, n
 Implemented vertical slices:
 
 - `/socratic-analysis`, parent-owned claim examination backed by a protected artifact-only analyst;
-- `/auto-panel`, default-off one-shot session consent for automatic sanitized Socratic escalation;
+- `/auto-panel`, default-off one-shot session consent plus persistent trusted-project autonomy for sanitized Expert Panel operations;
 - `/second-opinion`, parent-prepared briefs plus four isolated evidence-bound adversarial examiners and synthesis;
 - `/expert-panel`, immediate guarded preflight and consent before adversarial fan-out for an already self-contained artifact;
 - `source-control`, with `/commit` as a thin Pi prompt alias;
@@ -28,15 +28,17 @@ Implemented vertical slices:
 
 The Socratic workflow keeps conversation state in the parent, asks one material question at a time, and sends only a self-contained artifact to `pi-forge.socratic-analyst`. The protected child separates facts, inferences, assumptions, alternatives, falsifiers, and a reconstructed conclusion. By default, a recommendation still requires a separate explicit yes before preparing any multi-provider payload.
 
-`/auto-panel enable` can replace that per-run approval with one bounded standing grant. After interactive disclosure, one later complete Socratic recommendation mints a one-attempt receipt and may launch one payload classified as sanitized without an editor or per-run confirmation. The receipt is consumed by the first automatic tool attempt; the grant is memory-only, resets on a new session or `/reload`, is consumed before launcher work, and cannot retry or recurse. A local deny scanner blocks obvious secret, email, and private-path shapes, but neither the scanner nor the model's classification proves that data is safe.
+`/auto-panel enable` retains one bounded session grant. After interactive disclosure, one later complete Socratic recommendation mints a one-attempt receipt and may launch one sanitized payload without per-run dialogs. The grant is memory-only, resets on a new session or `/reload`, and never retries.
+
+`/auto-panel enable persistent` grants user-level autonomy in every project Pi marks trusted, including headless runs, on non-Windows filesystems where Pi Forge can durably fsync consent-directory metadata. The private consent record is bound to the fixed providers, chain, pi-subagents runtime, synthesizer, scanner, one-active-operation ceiling, three-operation session ceiling, 400,000-character cumulative session ceiling, proof-gated retry, and unknown-launch policy; drift makes it stale. Parent workflows launch directly, retain the returned operation ID, and use `await_expert_panel` to collect the synthesis without asking for slash commands or run IDs; an aborted or timed-out wait may safely re-await that same ID but must never reconvene as recovery. Session usage and the active-operation reservation are checkpointed in Pi custom entries so `/reload` cannot open another concurrent slot or reset either total; every emitted retry payload counts again. One whole-chain retry is permitted only after a normal lifecycle-v3 terminal failure; completion events must match the owning session, and unknown, paused, stopped, stale-reconciled, or session-changed outcomes never retry. Consent and trust are rechecked adjacent to spawn. An unknown or run-ID-less launch acknowledgement blocks persistent consent until the owning fleet is reconciled and the user interactively re-enrolls; that persistent-only block does not suppress an independently granted one-shot session path. A launch acknowledged with a run ID but lacking a same-session operation handle is reported as `launched-uncorrelated`, points to `/subagents-fleet`, and must not be reconvened; persistent mode also blocks its grant. `/auto-panel disable persistent` revokes future launches. Persistent consent survives `/reload`; an in-flight operation's payload and retry correlation intentionally do not, so its original pi-subagents run remains the recovery surface. A local deny scanner blocks obvious secret, authorization-header, email, and private-path shapes, but neither project trust, the scanner, nor the model's classification proves that data is safe.
 
 The second-opinion workflow:
 
 1. use the current parent model to resolve the decision and strongest supportable subject under review;
 2. gather only relevant evidence and separate verified facts from assumptions and gaps;
 3. prepare a self-contained, redacted brief with counterexample and falsification questions;
-4. confirm disclosure of that brief to four providers;
-5. launch four independent panelists with fresh context and no filesystem, shell, or network tools;
+4. apply persistent trusted-project consent when enabled, otherwise review and confirm the exact brief manually;
+5. launch four independent panelists with fresh context and no filesystem, shell, or network tools, then await the correlated operation;
 6. require each panelist to steelman, identify the weakest dependency, construct a concrete counterexample, define a falsification test, and state what survives;
 7. synthesize only evidence-supported surviving challenges while minimizing model-identity bias.
 
@@ -100,13 +102,17 @@ Examine a claim or decision Socratically before choosing whether independent rev
 /socratic-analysis Should this API design replace the current contract?
 ```
 
-Optionally grant one automatic sanitized escalation for the current session, inspect it, or revoke it before use:
+Grant one automatic sanitized Socratic escalation for the current session, or persist autonomy across every trusted project:
 
 ```text
 /auto-panel enable
+/auto-panel enable persistent
 /auto-panel status
 /auto-panel disable
+/auto-panel disable persistent
 ```
+
+Persistent enrollment is a one-time disclosure decision. Thereafter parent workflows launch and collect panel operations themselves; users do not invoke `/expert-panel` or relay run IDs for those workflows.
 
 Prepare context in the parent model, then obtain independent adversarial opinions:
 
@@ -162,7 +168,7 @@ Load engineering skills explicitly when needed:
 /skill:session-telemetry
 ```
 
-On an existing branch other than `dev`, `main`, or `master`, coherent task commits are standing-authorized after fresh verification, as are an exact same-name ordinary branch push and opening one PR with explicit repository, base, head, title, and a bounded inline body after the index and worktree are clean. `/commit` requests one such coherent commit and may complete that narrow delivery. Primary-branch commits or pushes, branch creation or switch, amend, force-push, tags, ref deletion, destructive cleanup, PR update/close/merge, and hook bypass still require explicit authorization. The source-control skill treats an existing index as protected, separates mixed-file changes by exact hunk, and places `git commit` behind an aborting branch conditional.
+A requested change standing-authorizes one fresh non-primary destination at the current `HEAD`: exact `git -c core.hooksPath= -c core.fsmonitor=false switch -c <branch>` may preserve task-owned staged or unstaged changes, while exact `git -c core.hooksPath= -c core.fsmonitor=false worktree add -b <branch> <absolute-nonexistent-path> HEAD` requires a clean checkout and an absent safe target beneath the project parent or OS temporary root. Both forms disable checkout hooks and filesystem-monitor commands; worktree materialization may still invoke configured checkout filters and therefore remains trusted-project work. On a non-primary branch, coherent task commits are standing-authorized after fresh verification, as are an exact same-name ordinary branch push and opening one PR with explicit repository, base, head, title, and a bounded inline body after the index and worktree are clean. `/commit` requests one such coherent commit and may first create a fresh branch before completing narrow delivery. Primary-branch commits or pushes, existing-branch switches, other branch/worktree mutations or removal, amend, force-push, tags, ref deletion, destructive cleanup, PR update/close/merge, and hook bypass still require explicit authorization. The source-control skill treats an existing index as protected, separates mixed-file changes by exact hunk, and places `git commit` behind an aborting branch conditional.
 
 ### Herdr orchestration
 
@@ -209,13 +215,13 @@ Herdr panes, worktrees, prompts, safe mode, permission modes, declared paths, an
 
 The bundled cohort aggregator accepts only 5 to 100 repeated explicit regular non-symlink session files, with a 1 GiB cumulative limit and internal filesystem/header duplicate rejection. It emits aggregate totals, medians, session counts and rates, and fixed warnings only, with no rows, extrema, timestamps, identifiers, hashes, or input paths. Its output reuses no-follow, no-implicit-overwrite, mode-0600, single-link, and input-identity protections. The trusted source checkout adds project-only `skill:pi-forge-harness-audit`, which requires exact-artifact disclosure consent, an operator comparability assertion, and one falsifiable change contract. It does not read raw sessions by default, edit source, refresh the Behavior Map, claim causality, invoke another provider, or promote changes automatically.
 
-The lifecycle extension blocks direct Bash-tool commits. It permits only a closed-form config-neutral exact same-name branch push and closed-form repository-bound `gh pr create` without confirmation when the current branch is an existing non-primary ref and the index and worktree are clean; every other push or PR mutation, destructive Git operation, and sensitive-path operation keeps its interactive gate. It also schedules one bounded verification follow-up after observed source changes without a later successful recognized check. It is a workflow guard, not a shell parser or OS sandbox; obfuscated commands, aliases, custom processes, and internal filesystem operations remain outside complete observation. See `docs/lifecycle.md` and `docs/telemetry.md`.
+The lifecycle extension blocks direct Bash-tool commits. It permits closed-form hook/fsmonitor-neutralized fresh non-primary branch and clean-checkout worktree preparation after runtime branch/path checks, plus a config-neutral exact same-name branch push and repository-bound `gh pr create` when the current non-primary ref exists and the index/worktree are clean. Every existing-branch switch, broader branch/worktree command, other push or PR mutation, destructive Git operation, and sensitive-path operation keeps its interactive gate. It also schedules one bounded verification follow-up after observed source changes without a later successful recognized check. It is a workflow guard, not a shell parser or OS sandbox; obfuscated commands, aliases, custom processes, and internal filesystem operations remain outside complete observation. See `docs/lifecycle.md` and `docs/telemetry.md`.
 
 The Socratic analyst is a protected artifact-only agent with fresh context, no inherited project context or skills, and no filesystem, shell, network, extension, MCP, persistence, sharing, or subagent capability. It cannot invoke slash commands or authorize provider disclosure. See `docs/socratic-analysis.md`.
 
 The expert-panel launcher validates the generated adversarial chain digest, verifies the exact pi-subagents runtime version, preflights the effective agent definitions, and pings pi-subagents before any panel model is called. Manual skill use opens the exact rendered payload for inspection and redaction, then binds provider consent to its size and SHA-256 digest. Shadowed agents, fallback models, context inheritance, added tools, skills, or ambient extensions are rejected. The preflight repeats immediately before spawn. The launcher also discloses that OpenAI receives the accepted payload a second time together with all four reports for synthesis.
 
-Automatic launch is a deliberate weaker consent mode, not a shortcut hidden inside the manual tool. It is disabled by default, requires a separate interactive one-shot grant before the Socratic analysis, requires a complete protected-agent recommendation and `classification: sanitized`, and consumes the grant before preflight. It retains chain/runtime checks and both isolation preflights but intentionally skips exact-payload editing and confirmation. Calls already emitted cannot be reliably revoked.
+Automatic launch is a deliberate weaker consent mode, not a shortcut hidden inside the manual tool. Session mode requires a separate interactive one-shot grant before Socratic analysis, a complete protected-agent recommendation, and `classification: sanitized`. Persistent mode requires one interactive user-level enrollment and current Pi project trust; it permits parent-owned workflows to launch truthfully sanitized briefs headlessly, tracks one active operation at a time, enforces three operations and 400,000 cumulative disclosed characters per Pi session, and owns one proof-gated retry. Both retain chain/runtime checks and both isolation preflights while intentionally skipping exact-payload editing and confirmation. Calls already emitted cannot be reliably revoked.
 
 The workflow does not share the parent conversation, project instructions, discovered skills, ambient extensions, or filesystem, shell, and network tools with its children. Pi-subagents still enables its internal `structured_output` tool to enforce result schemas.
 

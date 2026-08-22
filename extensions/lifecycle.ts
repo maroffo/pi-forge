@@ -2,15 +2,17 @@
 // ABOUTME: Uses exact tool events and one bounded follow-up without treating prose as computational evidence.
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { realpathSync } from "node:fs";
-import { homedir } from "node:os";
-import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { lstatSync, realpathSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import {
   dangerousCommandReason,
   findGitMutations,
   isSourcePath,
   isStandingAuthorizedBranchPush,
+  parseStandingAuthorizedBranchCreate,
   parseStandingAuthorizedPullRequestCreate,
+  parseStandingAuthorizedWorktreeCreate,
   isVerificationCommand,
   sensitivePathReason,
 } from "../src/lifecycle-policy.js";
@@ -110,6 +112,108 @@ function safeDisplay(value: string): string {
   return printable.length <= 800 ? printable : `${printable.slice(0, 797)}...`;
 }
 
+type GitDeliveryState = {
+  currentBranch: string;
+  existingLocalBranch: boolean;
+  cleanWorktree: boolean;
+};
+
+async function inspectGitDeliveryState(pi: ExtensionAPI, cwd: string): Promise<GitDeliveryState> {
+  try {
+    const branchResult = await pi.exec("git", ["symbolic-ref", "--quiet", "--short", "HEAD"], { cwd, timeout: 5_000 });
+    const currentBranch = branchResult.code === 0 ? branchResult.stdout.trim() : "";
+    if (!currentBranch) return { currentBranch: "", existingLocalBranch: false, cleanWorktree: false };
+    const refResult = await pi.exec(
+      "git",
+      ["show-ref", "--verify", "--quiet", `refs/heads/${currentBranch}`],
+      { cwd, timeout: 5_000 },
+    );
+    const statusResult = await pi.exec(
+      "git",
+      ["-c", "core.fsmonitor=false", "status", "--porcelain=v1", "--untracked-files=all"],
+      { cwd, timeout: 5_000 },
+    );
+    return {
+      currentBranch,
+      existingLocalBranch: refResult.code === 0,
+      cleanWorktree: statusResult.code === 0 && statusResult.stdout.length === 0,
+    };
+  } catch {
+    return { currentBranch: "", existingLocalBranch: false, cleanWorktree: false };
+  }
+}
+
+async function isNewLocalBranch(pi: ExtensionAPI, cwd: string, branch: string): Promise<boolean> {
+  try {
+    const valid = await pi.exec("git", ["check-ref-format", "--branch", branch], { cwd, timeout: 5_000 });
+    if (valid.code !== 0) return false;
+    const existing = await pi.exec(
+      "git",
+      ["show-ref", "--verify", "--quiet", `refs/heads/${branch}`],
+      { cwd, timeout: 5_000 },
+    );
+    return existing.code === 1;
+  } catch {
+    return false;
+  }
+}
+
+function pathExists(path: string): boolean {
+  try {
+    lstatSync(path);
+    return true;
+  } catch (error) {
+    const code = typeof error === "object" && error !== null && "code" in error
+      ? (error as NodeJS.ErrnoException).code
+      : undefined;
+    return code !== "ENOENT";
+  }
+}
+
+function isStrictDescendant(root: string, target: string): boolean {
+  const candidate = relative(root, target);
+  return candidate !== ""
+    && candidate !== ".."
+    && !candidate.startsWith(`..${sep}`)
+    && !isAbsolute(candidate);
+}
+
+function effectivePiAgentDirectory(): string {
+  return resolve(process.env.PI_CODING_AGENT_DIR?.trim() || join(homedir(), ".pi", "agent"));
+}
+
+async function isEligibleWorktreeTarget(
+  pi: ExtensionAPI,
+  cwd: string,
+  targetPath: string,
+): Promise<boolean> {
+  if (pathExists(targetPath)) return false;
+  let projectRoot: string;
+  try {
+    const rootResult = await pi.exec("git", ["rev-parse", "--show-toplevel"], { cwd, timeout: 5_000 });
+    if (rootResult.code !== 0 || !rootResult.stdout.trim()) return false;
+    projectRoot = realpathSync(rootResult.stdout.trim());
+  } catch {
+    return false;
+  }
+  const canonicalTarget = canonicalPath(targetPath, cwd);
+  if (sensitivePathReason(canonicalTarget, homedir(), effectivePiAgentDirectory())) return false;
+  if (canonicalTarget === projectRoot || isStrictDescendant(projectRoot, canonicalTarget)) return false;
+  let temporaryRoot: string;
+  try {
+    temporaryRoot = realpathSync(tmpdir());
+  } catch {
+    return false;
+  }
+  const eligibleRoot = isStrictDescendant(dirname(projectRoot), canonicalTarget)
+    || isStrictDescendant(temporaryRoot, canonicalTarget);
+  if (!eligibleRoot) return false;
+  const adjacentCanonicalTarget = canonicalPath(targetPath, cwd);
+  return adjacentCanonicalTarget === canonicalTarget
+    && !pathExists(targetPath)
+    && !pathExists(adjacentCanonicalTarget);
+}
+
 async function confirmRisk(ctx: any, title: string, detail: string): Promise<{ block: true; reason: string } | undefined> {
   if (!ctx.hasUI) return { block: true, reason: `${title} requires interactive confirmation.` };
   const approved = await ctx.ui.confirm(title, detail);
@@ -149,7 +253,7 @@ export default function lifecycleExtension(pi: ExtensionAPI): void {
       } catch {
         return { block: true, reason: "Pi Forge could not canonicalize the write target." };
       }
-      const sensitive = sensitivePathReason(absolutePath, homedir());
+      const sensitive = sensitivePathReason(absolutePath, homedir(), effectivePiAgentDirectory());
       if (!sensitive) return;
       return confirmRisk(
         ctx,
@@ -166,42 +270,18 @@ export default function lifecycleExtension(pi: ExtensionAPI): void {
     if (mutations.some((mutation) => mutation.kind === "commit")) {
       return {
         block: true,
-        reason: "Direct git commit is blocked. Use the source-control skill and commit-gate.sh after explicit commit authorization.",
+        reason: "Direct git commit is blocked. Use the source-control skill and commit-gate.sh under its branch-aware authorization contract.",
       };
     }
 
     const remoteActions = [...new Set(mutations.filter((mutation) => mutation.kind === "remote").map((mutation) => mutation.action))];
     if (remoteActions.length > 0) {
-      let currentBranch = "";
-      let existingLocalBranch = false;
-      let cleanWorktree = false;
-      try {
-        const branchResult = await pi.exec("git", ["symbolic-ref", "--quiet", "--short", "HEAD"], { cwd: ctx.cwd, timeout: 5_000 });
-        currentBranch = branchResult.code === 0 ? branchResult.stdout.trim() : "";
-        if (currentBranch) {
-          const refResult = await pi.exec(
-            "git",
-            ["show-ref", "--verify", "--quiet", `refs/heads/${currentBranch}`],
-            { cwd: ctx.cwd, timeout: 5_000 },
-          );
-          existingLocalBranch = refResult.code === 0;
-          const statusResult = await pi.exec(
-            "git",
-            ["status", "--porcelain=v1", "--untracked-files=all"],
-            { cwd: ctx.cwd, timeout: 5_000 },
-          );
-          cleanWorktree = statusResult.code === 0 && statusResult.stdout.length === 0;
-        }
-      } catch {
-        currentBranch = "";
-        existingLocalBranch = false;
-        cleanWorktree = false;
-      }
+      const gitState = await inspectGitDeliveryState(pi, ctx.cwd);
       const prCreate = remoteActions[0] === "pr-create"
-        ? parseStandingAuthorizedPullRequestCreate(command, currentBranch)
+        ? parseStandingAuthorizedPullRequestCreate(command, gitState.currentBranch)
         : undefined;
-      const standingAuthorized = existingLocalBranch && cleanWorktree && remoteActions.length === 1 && (
-        remoteActions[0] === "push" && isStandingAuthorizedBranchPush(command, currentBranch)
+      const standingAuthorized = gitState.existingLocalBranch && gitState.cleanWorktree && remoteActions.length === 1 && (
+        remoteActions[0] === "push" && isStandingAuthorizedBranchPush(command, gitState.currentBranch)
         || remoteActions[0] === "pr-create" && prCreate !== undefined
       );
       if (standingAuthorized) return;
@@ -216,6 +296,24 @@ export default function lifecycleExtension(pi: ExtensionAPI): void {
       mutations.filter((mutation) => mutation.kind === "destructive").map((mutation) => mutation.action),
     )];
     if (destructiveActions.length > 0) {
+      const branchCreate = destructiveActions.length === 1
+        ? parseStandingAuthorizedBranchCreate(command)
+        : undefined;
+      const worktreeCreate = destructiveActions.length === 1
+        ? parseStandingAuthorizedWorktreeCreate(command)
+        : undefined;
+      if (branchCreate || worktreeCreate) {
+        const gitState = await inspectGitDeliveryState(pi, ctx.cwd);
+        const branch = branchCreate?.branch ?? worktreeCreate?.branch;
+        const standingAuthorized = Boolean(
+          branch
+          && gitState.existingLocalBranch
+          && (branchCreate || gitState.cleanWorktree)
+          && await isNewLocalBranch(pi, ctx.cwd, branch)
+          && (!worktreeCreate || await isEligibleWorktreeTarget(pi, ctx.cwd, worktreeCreate.targetPath)),
+        );
+        if (standingAuthorized) return;
+      }
       return confirmRisk(
         ctx,
         "Git state mutation",

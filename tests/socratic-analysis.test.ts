@@ -84,28 +84,31 @@ test("Socratic output contract separates evidence and permits only one material 
   assert.match(agent, /Never claim to invoke `\/second-opinion`/);
 });
 
-test("Socratic escalation uses one-shot standing consent or preserves the manual reviewed fallback", async () => {
+test("Socratic escalation uses session or persistent consent and preserves the manual reviewed fallback", async () => {
   const [skill, docs] = await Promise.all([
     text("skills/socratic-analysis/SKILL.md"),
     text("docs/socratic-analysis.md"),
   ]);
 
   assert.match(skill, /one local eligibility call to `convene_opt_in_expert_panel`/);
-  assert.match(skill, /separate unused standing grant created interactively with `\/auto-panel enable`/);
+  assert.match(skill, /separate unused session grant from `\/auto-panel enable` or persistent trusted-project consent from `\/auto-panel enable persistent`/);
   assert.match(skill, /complete `recommend` result/);
   assert.match(skill, /truthfully classified as sanitized/);
   assert.match(skill, /call `convene_opt_in_expert_panel` exactly once/);
-  assert.match(skill, /if the tool launches or reports an unknown outcome, stop and never retry/);
-  assert.match(skill, /disabled, consumed, headless, or payload-policy rejection/);
+  assert.match(skill, /call `await_expert_panel` with the exact returned `operationId`/);
+  assert.match(skill, /model never retries or launches a replacement/);
+  assert.match(skill, /launch acknowledgement is unknown, stop/);
+  assert.match(skill, /disabled, consumed, blocked after an unknown launch, stale, invalid, untrusted, missing receipt, or payload-policy rejection/);
   assert.match(skill, /ask one separate yes-or-no question about using the manual reviewed Second Opinion path/);
   assert.match(skill, /Never call the automatic tool from a panel result/);
   assert.match(skill, /Only an unambiguous yes after the manual fallback question/);
   assert.match(skill, /editable payload and digest-bound multi-provider consent remain mandatory/);
 
-  assert.match(docs, /`\/auto-panel enable` offers a separate interactive standing-consent dialog/);
-  assert.match(docs, /exactly one automatic provider-launch attempt/);
-  assert.match(docs, /scanner is a heuristic, not proof/);
-  assert.match(docs, /consumed before preflight/);
-  assert.match(docs, /intentionally skips the per-run editor and digest confirmation/);
-  assert.match(docs, /Manual `\/second-opinion` and `\/expert-panel` behavior does not use or weaken/);
+  assert.match(docs, /`\/auto-panel enable` retains the separate in-memory one-shot session grant/);
+  assert.match(docs, /`\/auto-panel enable persistent` is a separate user-level grant/);
+  assert.match(docs, /works headlessly/);
+  assert.match(docs, /scanner and the model's classification are heuristics, not proof/);
+  assert.match(docs, /intentionally skipping per-run editing and digest confirmation/);
+  assert.match(docs, /parent calls `await_expert_panel`/);
+  assert.match(docs, /stale-reconciled, malformed, unknown, or session-changed outcomes never retry/);
 });
